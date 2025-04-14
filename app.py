@@ -7,6 +7,8 @@ import plotly.graph_objects as go
 from datetime import datetime, timedelta
 from sqlalchemy import create_engine, text
 import numpy as np
+import traceback
+import sys
 
 # Configuração da página
 st.set_page_config(
@@ -25,39 +27,98 @@ SERVICE = 'dbprod.santacasapc'
 # Inicializa o cliente Oracle Instant Client (sem especificar caminho para Linux)
 try:
     oracledb.init_oracle_client()  # No Linux, geralmente não precisa do caminho se instalado corretamente
+    st.sidebar.success("Oracle Instant Client inicializado com sucesso")
 except Exception as e:
-    st.warning(f"Aviso na inicialização do Oracle Instant Client: {e}. Continuando...")
+    st.sidebar.error(f"Erro na inicialização do Oracle Instant Client: {e}")
+    st.sidebar.info("Tentando continuar sem inicialização explícita...")
+
+# Função para testar conexão direta com oracledb
+def testar_conexao_direta():
+    try:
+        st.sidebar.info("Testando conexão direta com oracledb...")
+        conn = oracledb.connect(user=USERNAME, password=PASSWORD, 
+                               dsn=f"{HOST}:{PORT}/{SERVICE}")
+        cursor = conn.cursor()
+        cursor.execute("SELECT 1 FROM DUAL")
+        result = cursor.fetchone()
+        cursor.close()
+        conn.close()
+        st.sidebar.success(f"Conexão direta com oracledb bem-sucedida: {result}")
+        return True
+    except Exception as e:
+        st.sidebar.error(f"Erro na conexão direta com oracledb: {e}")
+        return False
 
 # Adicionando suppress_st_warning=True para evitar o aviso
 @st.cache(allow_output_mutation=True, suppress_st_warning=True)
 def conectar_ao_banco():
     """Estabelece uma conexão com o banco de dados Oracle usando SQLAlchemy e retorna a conexão."""
     try:
+        # Primeiro, tente a conexão com service_name
         connection_string = f'oracle+oracledb://{USERNAME}:{PASSWORD}@{HOST}:{PORT}/?service_name={SERVICE}'
+        st.sidebar.info(f"Tentando conexão com: {connection_string}")
         engine = create_engine(connection_string)
+        # Testar a conexão
+        with engine.connect() as conn:
+            result = conn.execute(text("SELECT 1 FROM DUAL"))
+            one = result.fetchone()
+            st.sidebar.success(f"Conexão com SQLAlchemy bem-sucedida: {one}")
         return engine
     except Exception as e:
-        st.error(f"Erro ao conectar ao Oracle: {e}")
-        return None
+        st.sidebar.error(f"Erro ao conectar com service_name: {e}")
+        try:
+            # Tente com SID como alternativa
+            connection_string = f'oracle+oracledb://{USERNAME}:{PASSWORD}@{HOST}:{PORT}/{SERVICE}'
+            st.sidebar.info(f"Tentando conexão alternativa com SID: {connection_string}")
+            engine = create_engine(connection_string)
+            # Testar a conexão
+            with engine.connect() as conn:
+                result = conn.execute(text("SELECT 1 FROM DUAL"))
+                one = result.fetchone()
+                st.sidebar.success(f"Conexão alternativa bem-sucedida: {one}")
+            return engine
+        except Exception as e2:
+            st.sidebar.error(f"Erro ao conectar com SID: {e2}")
+            # Tente conexão direta com oracledb como último recurso
+            if testar_conexao_direta():
+                try:
+                    # Tente com tns_admin
+                    connection_string = f'oracle+oracledb://{USERNAME}:{PASSWORD}@{HOST}:{PORT}/?service_name={SERVICE}'
+                    st.sidebar.info(f"Tentando conexão com tns_admin...")
+                    engine = create_engine(connection_string, connect_args={"thick_mode": True})
+                    return engine
+                except Exception as e3:
+                    st.sidebar.error(f"Erro na terceira tentativa: {e3}")
+            
+            # Mostrar o traceback completo para diagnóstico
+            st.sidebar.error("Traceback completo:")
+            st.sidebar.code(traceback.format_exc())
+            return None
 
 def obter_ordens_servico(engine):
     """Obtém os dados das ordens de serviço do grupo de trabalho 12."""
-    query = """
-    select  nr_sequencia as nr_os, 
-            ds_dano_breve as ds_solicitacao, 
-            obter_nome_pf(cd_pessoa_solicitante) as nm_solicitante, 
-            ie_prioridade,
-            dt_ordem_servico as dt_criacao, 
-            dt_inicio_real as dt_inicio, 
-            dt_fim_real as dt_termino, 
-            nm_usuario as nm_responsavel, 
-            dt_atualizacao as dt_ultima_atualizacao, 
-            ds_dano as ds_completa_servico
-    from    MAN_ORDEM_SERVICO 
-    where   NR_GRUPO_TRABALHO = 12
-    """
-    df = pd.read_sql(query, engine)
-    return df
+    try:
+        query = """
+        select  nr_sequencia as nr_os, 
+                ds_dano_breve as ds_solicitacao, 
+                obter_nome_pf(cd_pessoa_solicitante) as nm_solicitante, 
+                ie_prioridade,
+                dt_ordem_servico as dt_criacao, 
+                dt_inicio_real as dt_inicio, 
+                dt_fim_real as dt_termino, 
+                nm_usuario as nm_responsavel, 
+                dt_atualizacao as dt_ultima_atualizacao, 
+                ds_dano as ds_completa_servico
+        from    MAN_ORDEM_SERVICO 
+        where   NR_GRUPO_TRABALHO = 12
+        """
+        df = pd.read_sql(query, engine)
+        return df
+    except Exception as e:
+        st.error(f"Erro ao executar consulta: {e}")
+        st.code(traceback.format_exc())
+        # Retornar DataFrame vazio em caso de erro
+        return pd.DataFrame()
 
 def processar_dados(df):
     """Processa os dados para análise e visualização."""
@@ -91,12 +152,19 @@ def main():
     # Título do aplicativo
     st.title("🔧 Painel de Acompanhamento de Ordens de Serviço")
     
+    # Exibir informações do sistema para diagnóstico
+    st.sidebar.subheader("Informações do Sistema")
+    st.sidebar.info(f"Python: {sys.version}")
+    st.sidebar.info(f"oracledb: {oracledb.__version__}")
+    
     # Conectar ao banco de dados
     with st.spinner("Conectando ao banco de dados..."):
         engine = conectar_ao_banco()
         
     if engine is None:
-        st.error("Não foi possível conectar ao banco de dados. Verifique as credenciais.")
+        st.error("Não foi possível conectar ao banco de dados. Verifique as credenciais e as informações de diagnóstico na barra lateral.")
+        st.warning("Verifique se o Oracle Instant Client está instalado corretamente e se as credenciais de conexão estão corretas.")
+        st.info("Você também pode precisar configurar variáveis de ambiente como LD_LIBRARY_PATH para apontar para o diretório do Oracle Instant Client.")
         return
     
     # Obter dados
@@ -104,7 +172,7 @@ def main():
         df_os = obter_ordens_servico(engine)
         
     if df_os.empty:
-        st.warning("Não foram encontradas ordens de serviço para o grupo de trabalho 12.")
+        st.warning("Não foram encontradas ordens de serviço para o grupo de trabalho 12 ou houve um erro na consulta.")
         return
     
     # Processar dados
