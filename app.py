@@ -1,7 +1,3 @@
-import sys
-import os
-
-# Importar bibliotecas necessárias
 import pandas as pd
 import oracledb
 import streamlit as st
@@ -26,40 +22,22 @@ HOST = '10.250.250.190'
 PORT = 1521
 SERVICE = 'dbprod.santacasapc'
 
-# Inicializar o cliente Oracle (sem especificar caminho para compatibilidade com CentOS)
+# Inicializa o cliente Oracle Instant Client (sem especificar caminho para Linux)
 try:
-    oracledb.init_oracle_client()
+    oracledb.init_oracle_client()  # No Linux, geralmente não precisa do caminho se instalado corretamente
 except Exception as e:
-    st.warning(f"Oracle Instant Client: {e}")
-    st.info("Tentando continuar sem inicialização explícita do cliente Oracle...")
+    st.warning(f"Aviso na inicialização do Oracle Instant Client: {e}. Continuando...")
 
-# Função para conectar ao banco de dados sem usar cache
-def get_database_connection():
-    """Estabelece e retorna uma conexão com o banco de dados Oracle usando SQLAlchemy"""
+@st.cache_resource
+def conectar_ao_banco():
+    """Estabelece uma conexão com o banco de dados Oracle usando SQLAlchemy e retorna a conexão."""
     try:
-        # Usar cx_Oracle em vez de oracledb para compatibilidade com versões mais antigas
-        connection_string = f'oracle://{USERNAME}:{PASSWORD}@{HOST}:{PORT}/{SERVICE}'
+        connection_string = f'oracle+oracledb://{USERNAME}:{PASSWORD}@{HOST}:{PORT}/?service_name={SERVICE}'
         engine = create_engine(connection_string)
-        return engine, None
+        return engine
     except Exception as e:
-        return None, str(e)
-
-def verificar_credenciais(engine, username, password):
-    """Verifica as credenciais chamando a função verificar_senha_existente no Oracle."""
-    if username == "teste" and password == "123":
-        return True, "Usuário Teste"
-    query = text("""
-    SELECT verificar_senha_existente(UPPER(:username), UPPER(:password), 1) FROM DUAL
-    """)
-    try:
-        with engine.connect() as conn:
-            result = conn.execute(query, {"username": username, "password": password}).fetchone()
-            if result and result[0] == 'S':
-                return True, username
-            return False, None
-    except Exception as e:
-        st.error(f"Erro ao verificar credenciais: {e}")
-        return False, None
+        st.error(f"Erro ao conectar ao Oracle: {e}")
+        return None
 
 def obter_ordens_servico(engine):
     """Obtém os dados das ordens de serviço do grupo de trabalho 12."""
@@ -77,18 +55,11 @@ def obter_ordens_servico(engine):
     from    MAN_ORDEM_SERVICO 
     where   NR_GRUPO_TRABALHO = 12
     """
-    try:
-        df = pd.read_sql(query, engine)
-        return df
-    except Exception as e:
-        st.error(f"Erro ao obter dados: {e}")
-        return pd.DataFrame()
+    df = pd.read_sql(query, engine)
+    return df
 
 def processar_dados(df):
     """Processa os dados para análise e visualização."""
-    if df.empty:
-        return df
-        
     # Converter todos os nomes de colunas para minúsculas
     df.columns = [col.lower() for col in df.columns]
     
@@ -115,188 +86,25 @@ def processar_dados(df):
     
     return df
 
-def criar_dados_exemplo():
-    """Cria dados de exemplo para o modo de teste"""
-    # Criar datas base
-    hoje = datetime.now()
-    datas_criacao = [
-        hoje - timedelta(days=30),
-        hoje - timedelta(days=25),
-        hoje - timedelta(days=20),
-        hoje - timedelta(days=15),
-        hoje - timedelta(days=10),
-        hoje - timedelta(days=5),
-        hoje - timedelta(days=2),
-        hoje - timedelta(days=1),
-        hoje,
-        hoje - timedelta(days=45)
-    ]
-    
-    # Criar dados
-    dados = {
-        'nr_os': list(range(1001, 1011)),
-        'ds_solicitacao': [
-            'Manutenção em equipamento de ar condicionado',
-            'Reparo em porta com dobradiça quebrada',
-            'Instalação de tomada elétrica',
-            'Vazamento de água no banheiro',
-            'Troca de lâmpada queimada',
-            'Reparo em cadeira quebrada',
-            'Manutenção em computador',
-            'Instalação de software',
-            'Problema na rede de internet',
-            'Manutenção preventiva em equipamento médico'
-        ],
-        'nm_solicitante': [
-            'João Silva',
-            'Maria Santos',
-            'Pedro Oliveira',
-            'Ana Costa',
-            'Carlos Souza',
-            'Fernanda Lima',
-            'Ricardo Pereira',
-            'Juliana Alves',
-            'Marcos Rodrigues',
-            'Luciana Ferreira'
-        ],
-        'ie_prioridade': ['Alta', 'Média', 'Baixa', 'Alta', 'Média', 'Baixa', 'Alta', 'Média', 'Baixa', 'Alta'],
-        'dt_criacao': datas_criacao,
-        'dt_inicio': [
-            datas_criacao[0] + timedelta(hours=2),
-            datas_criacao[1] + timedelta(hours=1),
-            datas_criacao[2] + timedelta(hours=3),
-            datas_criacao[3] + timedelta(hours=2),
-            datas_criacao[4] + timedelta(hours=1),
-            None,
-            None,
-            datas_criacao[7] + timedelta(hours=4),
-            None,
-            datas_criacao[9] + timedelta(hours=2)
-        ],
-        'dt_termino': [
-            datas_criacao[0] + timedelta(days=1),
-            datas_criacao[1] + timedelta(days=2),
-            datas_criacao[2] + timedelta(days=1),
-            None,
-            None,
-            None,
-            None,
-            datas_criacao[7] + timedelta(days=1),
-            None,
-            datas_criacao[9] + timedelta(days=3)
-        ],
-        'nm_responsavel': [
-            'Técnico José',
-            'Técnico Roberto',
-            'Técnico Antônio',
-            'Técnico Paulo',
-            'Técnico Eduardo',
-            None,
-            None,
-            'Técnico Marcelo',
-            None,
-            'Técnico Rafael'
-        ],
-        'dt_ultima_atualizacao': [
-            datas_criacao[0] + timedelta(days=1),
-            datas_criacao[1] + timedelta(days=2),
-            datas_criacao[2] + timedelta(days=1),
-            datas_criacao[3] + timedelta(hours=5),
-            datas_criacao[4] + timedelta(hours=3),
-            datas_criacao[5],
-            datas_criacao[6],
-            datas_criacao[7] + timedelta(days=1),
-            datas_criacao[8],
-            datas_criacao[9] + timedelta(days=3)
-        ],
-        'ds_completa_servico': [
-            'Realizada manutenção completa no equipamento de ar condicionado, incluindo limpeza de filtros e verificação do gás refrigerante.',
-            'Substituída a dobradiça quebrada e realizado ajuste na porta para melhor funcionamento.',
-            'Instalada nova tomada elétrica conforme solicitado, com teste de funcionamento.',
-            'Identificado vazamento na conexão da pia do banheiro. Aguardando peça para substituição.',
-            'Em andamento a substituição da lâmpada queimada no corredor principal.',
-            'Aguardando disponibilidade para reparo da cadeira quebrada.',
-            'Aguardando atendimento para manutenção do computador com problema de inicialização.',
-            'Instalado e configurado o software solicitado, com treinamento básico para utilização.',
-            'Solicitação recebida para verificação de problema na rede de internet.',
-            'Realizada manutenção preventiva completa no equipamento médico, incluindo calibração e testes de funcionamento.'
-        ]
-    }
-    
-    # Criar DataFrame
-    df = pd.DataFrame(dados)
-    
-    return df
-
-def login():
-    """Interface de login do Streamlit"""
-    st.title("Login - Painel de Ordens de Serviço")
-    
-    # Conectar ao banco de dados sem usar cache
-    engine, error = get_database_connection()
-    
-    if not engine:
-        st.error(f"Não foi possível conectar ao banco de dados: {error}")
-        
-        # Opção para usar usuário de teste
-        st.info("Você pode usar o usuário de teste para acessar o sistema.")
-        username = st.text_input("Usuário")
-        password = st.text_input("Senha", type="password")
-        
-        if st.button("Entrar"):
-            if username == "teste" and password == "123":
-                st.session_state.logged_in = True
-                st.session_state.user_name = "Usuário Teste"
-                st.session_state.test_mode = True
-                st.success(f"Login bem-sucedido! Bem-vindo, Usuário Teste.")
-                st.experimental_rerun()
-            else:
-                st.error("Usuário ou senha incorretos")
-        return
-    
-    username = st.text_input("Usuário")
-    password = st.text_input("Senha", type="password")
-    
-    if st.button("Entrar"):
-        authenticated, user_name = verificar_credenciais(engine, username, password)
-        if authenticated:
-            st.session_state.logged_in = True
-            st.session_state.user_name = user_name
-            st.session_state.db_engine = engine  # Armazena a conexão na sessão
-            st.session_state.test_mode = False
-            st.success(f"Login bem-sucedido! Bem-vindo, {user_name}.")
-            st.experimental_rerun()
-        else:
-            st.error("Usuário ou senha incorretos")
-
-def mostrar_painel():
-    """Exibe o painel principal de ordens de serviço"""
+def main():
     # Título do aplicativo
     st.title("🔧 Painel de Acompanhamento de Ordens de Serviço")
     
-    # Exibir informações do usuário logado
-    st.sidebar.write(f"Usuário: {st.session_state.user_name}")
-    if st.sidebar.button("Sair"):
-        for key in list(st.session_state.keys()):
-            del st.session_state[key]
-        st.experimental_rerun()
-    
-    # Verificar se estamos no modo de teste
-    if st.session_state.get('test_mode', False):
-        st.warning("Executando em modo de teste com dados simulados.")
-        # Criar dados de exemplo
-        df_os = criar_dados_exemplo()
-    else:
-        # Usar a conexão armazenada na sessão
-        engine = st.session_state.db_engine
+    # Conectar ao banco de dados
+    with st.spinner("Conectando ao banco de dados..."):
+        engine = conectar_ao_banco()
         
-        # Obter dados
-        with st.spinner("Carregando dados das ordens de serviço..."):
-            df_os = obter_ordens_servico(engine)
-            
-        if df_os.empty:
-            st.warning("Não foram encontradas ordens de serviço para o grupo de trabalho 12.")
-            return
+    if engine is None:
+        st.error("Não foi possível conectar ao banco de dados. Verifique as credenciais.")
+        return
+    
+    # Obter dados
+    with st.spinner("Carregando dados das ordens de serviço..."):
+        df_os = obter_ordens_servico(engine)
+        
+    if df_os.empty:
+        st.warning("Não foram encontradas ordens de serviço para o grupo de trabalho 12.")
+        return
     
     # Processar dados
     df_os = processar_dados(df_os)
@@ -531,7 +339,7 @@ def mostrar_painel():
             os_detalhes = df_filtrado[df_filtrado['nr_os'] == os_selecionada].iloc[0]
             
             col1, col2 = st.columns(2)
-
+            
             with col1:
                 st.subheader(f"OS #{os_detalhes['nr_os']}")
                 
@@ -625,13 +433,6 @@ def mostrar_painel():
                     st.write(os_detalhes['ds_completa_servico'] if not pd.isna(os_detalhes['ds_completa_servico']) else "Sem descrição detalhada.")
         else:
             st.error("Não foi possível encontrar a coluna do número da OS ou uma alternativa adequada.")
-
-def main():
-    # Verificar se o usuário está logado
-    if 'logged_in' not in st.session_state or not st.session_state.logged_in:
-        login()
-    else:
-        mostrar_painel()
 
 if __name__ == "__main__":
     main()
