@@ -26,36 +26,27 @@ SERVICE = 'dbprod.santacasapc'
 # Inicializa o cliente Oracle Instant Client (sem especificar caminho para Linux)
 try:
     oracledb.init_oracle_client()  # No Linux, geralmente não precisa do caminho se instalado corretamente
-    st.sidebar.success("Oracle Instant Client inicializado com sucesso")
 except Exception as e:
     st.sidebar.error(f"Erro na inicialização do Oracle Instant Client: {e}")
-    st.sidebar.info("Tentando continuar sem inicialização explícita...")
 
 # Usando conexão direta com oracledb em vez de SQLAlchemy
 @st.cache(allow_output_mutation=True, suppress_st_warning=True)
 def conectar_ao_banco():
     """Estabelece uma conexão direta com o banco de dados Oracle usando oracledb."""
     try:
-        st.sidebar.info(f"Tentando conexão com: {HOST}:{PORT}/{SERVICE}")
         # Tentativa 1: Usando DSN com formato padrão
         conn = oracledb.connect(user=USERNAME, password=PASSWORD, 
                                dsn=f"{HOST}:{PORT}/{SERVICE}")
-        st.sidebar.success("Conexão estabelecida com sucesso")
         return conn
     except Exception as e:
-        st.sidebar.error(f"Erro na primeira tentativa: {e}")
         try:
             # Tentativa 2: Usando formato de conexão EZ
             dsn = f"(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST={HOST})(PORT={PORT}))(CONNECT_DATA=(SERVICE_NAME={SERVICE})))"
-            st.sidebar.info(f"Tentando conexão alternativa com: {dsn}")
             conn = oracledb.connect(user=USERNAME, password=PASSWORD, dsn=dsn)
-            st.sidebar.success("Conexão alternativa estabelecida com sucesso")
             return conn
         except Exception as e2:
-            st.sidebar.error(f"Erro na segunda tentativa: {e2}")
-            # Mostrar o traceback completo para diagnóstico
-            st.sidebar.error("Traceback completo:")
-            st.sidebar.code(traceback.format_exc())
+            # Mostrar mensagem de erro
+            st.error(f"Erro ao conectar ao banco de dados: {e2}")
             return None
 
 def obter_ordens_servico(conn):
@@ -81,7 +72,6 @@ def obter_ordens_servico(conn):
         return df
     except Exception as e:
         st.error(f"Erro ao executar consulta: {e}")
-        st.code(traceback.format_exc())
         # Retornar DataFrame vazio em caso de erro
         return pd.DataFrame()
 
@@ -117,19 +107,12 @@ def main():
     # Título do aplicativo
     st.title("🔧 Painel de Acompanhamento de Ordens de Serviço")
     
-    # Exibir informações do sistema para diagnóstico
-    st.sidebar.subheader("Informações do Sistema")
-    st.sidebar.info(f"Python: {sys.version}")
-    st.sidebar.info(f"oracledb: {oracledb.__version__}")
-    
     # Conectar ao banco de dados
     with st.spinner("Conectando ao banco de dados..."):
         conn = conectar_ao_banco()
         
     if conn is None:
-        st.error("Não foi possível conectar ao banco de dados. Verifique as credenciais e as informações de diagnóstico na barra lateral.")
-        st.warning("Verifique se o Oracle Instant Client está instalado corretamente e se as credenciais de conexão estão corretas.")
-        st.info("Você também pode precisar configurar variáveis de ambiente como LD_LIBRARY_PATH para apontar para o diretório do Oracle Instant Client.")
+        st.error("Não foi possível conectar ao banco de dados. Verifique as credenciais.")
         return
     
     # Obter dados
