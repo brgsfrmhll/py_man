@@ -28,7 +28,8 @@ try:
 except Exception as e:
     st.warning(f"Aviso na inicialização do Oracle Instant Client: {e}. Continuando...")
 
-@st.cache_resource
+# Usando st.cache em vez de st.cache_resource para compatibilidade com versões mais antigas
+@st.cache(allow_output_mutation=True)
 def conectar_ao_banco():
     """Estabelece uma conexão com o banco de dados Oracle usando SQLAlchemy e retorna a conexão."""
     try:
