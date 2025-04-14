@@ -1,3 +1,7 @@
+import sys
+import os
+
+# Importar bibliotecas necessárias
 import pandas as pd
 import oracledb
 import streamlit as st
@@ -7,6 +11,10 @@ import plotly.graph_objects as go
 from datetime import datetime, timedelta
 from sqlalchemy import create_engine, text
 import numpy as np
+
+# Verificar a versão do Streamlit para usar o decorador de cache correto
+import streamlit
+from packaging import version
 
 # Configuração da página
 st.set_page_config(
@@ -25,10 +33,19 @@ SERVICE = 'dbprod.santacasapc'
 # Inicializar o cliente Oracle (sem especificar caminho para compatibilidade com CentOS)
 try:
     oracledb.init_oracle_client()
-except:
-    st.warning("Oracle Instant Client já inicializado ou não encontrado. Continuando...")
+except Exception as e:
+    st.warning(f"Oracle Instant Client: {e}")
+    st.info("Tentando continuar sem inicialização explícita do cliente Oracle...")
 
-@st.cache_resource
+# Usar o decorador de cache apropriado com base na versão do Streamlit
+if hasattr(st, 'cache_resource'):
+    cache_decorator = st.cache_resource
+elif hasattr(st, 'experimental_singleton'):
+    cache_decorator = st.experimental_singleton
+else:
+    cache_decorator = st.cache(allow_output_mutation=True)
+
+@cache_decorator
 def get_database_connection():
     """Estabelece e retorna uma conexão com o banco de dados Oracle usando SQLAlchemy"""
     try:
@@ -72,11 +89,18 @@ def obter_ordens_servico(engine):
     from    MAN_ORDEM_SERVICO 
     where   NR_GRUPO_TRABALHO = 12
     """
-    df = pd.read_sql(query, engine)
-    return df
+    try:
+        df = pd.read_sql(query, engine)
+        return df
+    except Exception as e:
+        st.error(f"Erro ao obter dados: {e}")
+        return pd.DataFrame()
 
 def processar_dados(df):
     """Processa os dados para análise e visualização."""
+    if df.empty:
+        return df
+        
     # Converter todos os nomes de colunas para minúsculas
     df.columns = [col.lower() for col in df.columns]
     
@@ -119,7 +143,7 @@ def login():
             st.session_state.user_name = user_name
             st.session_state.db_engine = engine  # Armazena a conexão na sessão
             st.success(f"Login bem-sucedido! Bem-vindo, {user_name}.")
-            st.rerun()
+            st.experimental_rerun()
         else:
             st.error("Usuário ou senha incorretos")
 
@@ -133,7 +157,7 @@ def mostrar_painel():
     if st.sidebar.button("Sair"):
         for key in list(st.session_state.keys()):
             del st.session_state[key]
-        st.rerun()
+        st.experimental_rerun()
     
     # Usar a conexão armazenada na sessão
     engine = st.session_state.db_engine
