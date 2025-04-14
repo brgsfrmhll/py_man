@@ -228,7 +228,7 @@ def main():
                 }
             )
             fig.update_traces(textposition='inside', textinfo='percent+label')
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig)
         
         with col2:
             # Gráfico de barras por prioridade
@@ -247,7 +247,7 @@ def main():
                     'Em aberto': '#EF553B'
                 }
             )
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig)
     
     elif tab_selecionada == "Tempo de Atendimento":
         col1, col2 = st.columns(2)
@@ -266,7 +266,7 @@ def main():
                 color='tempo_atendimento',
                 color_continuous_scale='Viridis'
             )
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig)
         
         with col2:
             # Gráfico de tempo médio de espera por prioridade
@@ -282,7 +282,7 @@ def main():
                 color='tempo_espera',
                 color_continuous_scale='Viridis'
             )
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(fig)
     
     elif tab_selecionada == "Solicitantes":
         # Top solicitantes
@@ -299,7 +299,7 @@ def main():
             color='Quantidade',
             color_continuous_scale='Viridis'
         )
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(fig)
     
     # Linha do tempo das OS
     st.header("Linha do Tempo de OS")
@@ -327,7 +327,7 @@ def main():
             'Em aberto': '#EF553B'
         }
     )
-    st.plotly_chart(fig, use_container_width=True)
+    st.plotly_chart(fig)
     
     # Tabela de dados
     st.header("Detalhamento das Ordens de Serviço")
@@ -364,8 +364,8 @@ def main():
         if col in df_exibir.columns and df_exibir[col].dtype.kind == 'M':  # Verifica se é uma coluna de data
             df_exibir[col] = df_exibir[col].dt.strftime('%d/%m/%Y %H:%M')
     
-    # Exibir tabela com opção de expandir linhas
-    st.dataframe(df_exibir, use_container_width=True)
+    # Exibir tabela sem o parâmetro use_container_width
+    st.dataframe(df_exibir)
     
     # Detalhes da OS selecionada
     st.header("Detalhes da Ordem de Serviço")
