@@ -5,7 +5,6 @@ import matplotlib.pyplot as plt
 import plotly.express as px
 import plotly.graph_objects as go
 from datetime import datetime, timedelta
-from sqlalchemy import create_engine, text
 import numpy as np
 import traceback
 import sys
@@ -32,70 +31,34 @@ except Exception as e:
     st.sidebar.error(f"Erro na inicialização do Oracle Instant Client: {e}")
     st.sidebar.info("Tentando continuar sem inicialização explícita...")
 
-# Função para testar conexão direta com oracledb
-def testar_conexao_direta():
-    try:
-        st.sidebar.info("Testando conexão direta com oracledb...")
-        conn = oracledb.connect(user=USERNAME, password=PASSWORD, 
-                               dsn=f"{HOST}:{PORT}/{SERVICE}")
-        cursor = conn.cursor()
-        cursor.execute("SELECT 1 FROM DUAL")
-        result = cursor.fetchone()
-        cursor.close()
-        conn.close()
-        st.sidebar.success(f"Conexão direta com oracledb bem-sucedida: {result}")
-        return True
-    except Exception as e:
-        st.sidebar.error(f"Erro na conexão direta com oracledb: {e}")
-        return False
-
-# Adicionando suppress_st_warning=True para evitar o aviso
+# Usando conexão direta com oracledb em vez de SQLAlchemy
 @st.cache(allow_output_mutation=True, suppress_st_warning=True)
 def conectar_ao_banco():
-    """Estabelece uma conexão com o banco de dados Oracle usando SQLAlchemy e retorna a conexão."""
+    """Estabelece uma conexão direta com o banco de dados Oracle usando oracledb."""
     try:
-        # Primeiro, tente a conexão com service_name
-        connection_string = f'oracle+oracledb://{USERNAME}:{PASSWORD}@{HOST}:{PORT}/?service_name={SERVICE}'
-        st.sidebar.info(f"Tentando conexão com: {connection_string}")
-        engine = create_engine(connection_string)
-        # Testar a conexão
-        with engine.connect() as conn:
-            result = conn.execute(text("SELECT 1 FROM DUAL"))
-            one = result.fetchone()
-            st.sidebar.success(f"Conexão com SQLAlchemy bem-sucedida: {one}")
-        return engine
+        st.sidebar.info(f"Tentando conexão com: {HOST}:{PORT}/{SERVICE}")
+        # Tentativa 1: Usando DSN com formato padrão
+        conn = oracledb.connect(user=USERNAME, password=PASSWORD, 
+                               dsn=f"{HOST}:{PORT}/{SERVICE}")
+        st.sidebar.success("Conexão estabelecida com sucesso")
+        return conn
     except Exception as e:
-        st.sidebar.error(f"Erro ao conectar com service_name: {e}")
+        st.sidebar.error(f"Erro na primeira tentativa: {e}")
         try:
-            # Tente com SID como alternativa
-            connection_string = f'oracle+oracledb://{USERNAME}:{PASSWORD}@{HOST}:{PORT}/{SERVICE}'
-            st.sidebar.info(f"Tentando conexão alternativa com SID: {connection_string}")
-            engine = create_engine(connection_string)
-            # Testar a conexão
-            with engine.connect() as conn:
-                result = conn.execute(text("SELECT 1 FROM DUAL"))
-                one = result.fetchone()
-                st.sidebar.success(f"Conexão alternativa bem-sucedida: {one}")
-            return engine
+            # Tentativa 2: Usando formato de conexão EZ
+            dsn = f"(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST={HOST})(PORT={PORT}))(CONNECT_DATA=(SERVICE_NAME={SERVICE})))"
+            st.sidebar.info(f"Tentando conexão alternativa com: {dsn}")
+            conn = oracledb.connect(user=USERNAME, password=PASSWORD, dsn=dsn)
+            st.sidebar.success("Conexão alternativa estabelecida com sucesso")
+            return conn
         except Exception as e2:
-            st.sidebar.error(f"Erro ao conectar com SID: {e2}")
-            # Tente conexão direta com oracledb como último recurso
-            if testar_conexao_direta():
-                try:
-                    # Tente com tns_admin
-                    connection_string = f'oracle+oracledb://{USERNAME}:{PASSWORD}@{HOST}:{PORT}/?service_name={SERVICE}'
-                    st.sidebar.info(f"Tentando conexão com tns_admin...")
-                    engine = create_engine(connection_string, connect_args={"thick_mode": True})
-                    return engine
-                except Exception as e3:
-                    st.sidebar.error(f"Erro na terceira tentativa: {e3}")
-            
+            st.sidebar.error(f"Erro na segunda tentativa: {e2}")
             # Mostrar o traceback completo para diagnóstico
             st.sidebar.error("Traceback completo:")
             st.sidebar.code(traceback.format_exc())
             return None
 
-def obter_ordens_servico(engine):
+def obter_ordens_servico(conn):
     """Obtém os dados das ordens de serviço do grupo de trabalho 12."""
     try:
         query = """
@@ -112,7 +75,9 @@ def obter_ordens_servico(engine):
         from    MAN_ORDEM_SERVICO 
         where   NR_GRUPO_TRABALHO = 12
         """
-        df = pd.read_sql(query, engine)
+        
+        # Usar pandas para ler diretamente da conexão
+        df = pd.read_sql(query, conn)
         return df
     except Exception as e:
         st.error(f"Erro ao executar consulta: {e}")
@@ -159,9 +124,9 @@ def main():
     
     # Conectar ao banco de dados
     with st.spinner("Conectando ao banco de dados..."):
-        engine = conectar_ao_banco()
+        conn = conectar_ao_banco()
         
-    if engine is None:
+    if conn is None:
         st.error("Não foi possível conectar ao banco de dados. Verifique as credenciais e as informações de diagnóstico na barra lateral.")
         st.warning("Verifique se o Oracle Instant Client está instalado corretamente e se as credenciais de conexão estão corretas.")
         st.info("Você também pode precisar configurar variáveis de ambiente como LD_LIBRARY_PATH para apontar para o diretório do Oracle Instant Client.")
@@ -169,7 +134,7 @@ def main():
     
     # Obter dados
     with st.spinner("Carregando dados das ordens de serviço..."):
-        df_os = obter_ordens_servico(engine)
+        df_os = obter_ordens_servico(conn)
         
     if df_os.empty:
         st.warning("Não foram encontradas ordens de serviço para o grupo de trabalho 12 ou houve um erro na consulta.")
