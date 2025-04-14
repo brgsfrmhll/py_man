@@ -199,9 +199,15 @@ def main():
     # Gráficos
     st.header("Análise")
     
-    tab1, tab2, tab3 = st.tabs(["Status e Prioridade", "Tempo de Atendimento", "Solicitantes"])
+    # Substituindo st.tabs() por st.radio() para compatibilidade com versões mais antigas
+    tab_selecionada = st.radio(
+        "Selecione uma visualização:",
+        ["Status e Prioridade", "Tempo de Atendimento", "Solicitantes"]
+    )
     
-    with tab1:
+    st.subheader(tab_selecionada)
+    
+    if tab_selecionada == "Status e Prioridade":
         col1, col2 = st.columns(2)
         
         with col1:
@@ -243,7 +249,7 @@ def main():
             )
             st.plotly_chart(fig, use_container_width=True)
     
-    with tab2:
+    elif tab_selecionada == "Tempo de Atendimento":
         col1, col2 = st.columns(2)
         
         with col1:
@@ -278,7 +284,7 @@ def main():
             )
             st.plotly_chart(fig, use_container_width=True)
     
-    with tab3:
+    elif tab_selecionada == "Solicitantes":
         # Top solicitantes
         top_solicitantes = df_filtrado['nm_solicitante'].value_counts().reset_index()
         top_solicitantes.columns = ['Solicitante', 'Quantidade']
