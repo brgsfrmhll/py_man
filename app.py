@@ -12,7 +12,7 @@ import sys
 # Configuração da página do Streamlit
 st.set_page_config(
     page_title="Painel de Ordens de Serviço",
-    page_icon="🔧",
+    page_icon="��",
     layout="wide"
 )
 
@@ -101,10 +101,10 @@ def processar_dados(df):
             df[col] = pd.to_datetime(df[col], errors='coerce')
     
     # Criar coluna de status
-    # Inicializa todas como 'Em aberto'
+    # Inicializa todas como 'Em aberto' (dt_inicio e dt_termino são NULL)
     df['status'] = 'Em aberto'
-    # Se dt_inicio não for nulo, status é 'Em andamento'
-    df.loc[df['dt_inicio'].notna(), 'status'] = 'Em andamento'
+    # Se dt_inicio não for nulo (e dt_termino é nulo), status é 'Em andamento'
+    df.loc[df['dt_inicio'].notna() & df['dt_termino'].isna(), 'status'] = 'Em andamento'
     # Se dt_termino não for nulo, status é 'Concluída'
     df.loc[df['dt_termino'].notna(), 'status'] = 'Concluída'
     
@@ -345,72 +345,56 @@ def main():
 
     # --- NOVA ABA: OS sem Responsável e Carga de Trabalho ---
     elif tab_selecionada == "OS sem Responsável e Carga de Trabalho":
-        st.subheader("Ordens de Serviço em Aberto sem Responsável Designado")
+        st.subheader("Ordens de Serviço Abertas e Aguardando Início")
         st.write(
-            "Esta seção lista as Ordens de Serviço que estão atualmente 'Em aberto' e para as quais nenhum responsável foi atribuído. "
-            "Elas são ordenadas da mais antiga para a mais recente, ajudando a identificar itens que podem estar parados."
+            "Esta seção lista as Ordens de Serviço que ainda não foram iniciadas (`dt_inicio` é nulo) e não foram concluídas (`dt_termino` é nulo). "
+            "Elas estão ordenadas da mais antiga para a mais recente, ajudando a identificar itens que podem estar parados, independentemente de terem um responsável atribuído."
         )
         
-        # 1. Lista de OS em Aberto sem Responsável (Ordenada da mais antiga para a mais nova)
-        os_sem_responsavel = df_filtrado[
-            (df_filtrado["status"] == "Em aberto") & 
-            (df_filtrado["nm_responsavel"].isna()) # Verifica se o responsável é NaN (nulo)
+        # 1. Lista de OS Abertas e Aguardando Início (dt_inicio IS NULL AND dt_fim IS NULL)
+        # Isso corresponde diretamente ao status 'Em aberto' definido em processar_dados
+        os_aguardando_inicio = df_filtrado[
+            df_filtrado["status"] == "Em aberto" 
         ].copy() 
 
         # Ordena pela data de criação, da mais antiga para a mais nova
-        os_sem_responsavel = os_sem_responsavel.sort_values(by="dt_criacao", ascending=True)
+        os_aguardando_inicio = os_aguardando_inicio.sort_values(by="dt_criacao", ascending=True)
 
-        if not os_sem_responsavel.empty:
-            st.success(f"Foram encontradas **{len(os_sem_responsavel)}** Ordens de Serviço em aberto sem responsável designada.")
+        if not os_aguardando_inicio.empty:
+            st.success(f"Foram encontradas **{len(os_aguardando_inicio)}** Ordens de Serviço abertas e aguardando início.")
             # Seleciona e renomeia colunas para melhor visualização na tabela
-            st.dataframe(os_sem_responsavel[[
-                'nr_os', 'ds_solicitacao', 'dt_criacao', 'ie_prioridade', 'status'
+            st.dataframe(os_aguardando_inicio[[
+                'nr_os', 'ds_solicitacao', 'nm_solicitante', 'ie_prioridade', 'dt_criacao', 'nm_responsavel'
             ]].rename(columns={
                 'nr_os': 'Nº OS', 
                 'ds_solicitacao': 'Solicitação', 
-                'dt_criacao': 'Data Criação', 
+                'nm_solicitante': 'Solicitante',
                 'ie_prioridade': 'Prioridade', 
-                'status': 'Status'
+                'dt_criacao': 'Data Criação',
+                'nm_responsavel': 'Responsável Atual' # Renomeia para clareza
             })) # use_container_width removido para compatibilidade
         else:
-            st.info("🎉 Nenhuma Ordem de Serviço em aberto sem responsável designada no período selecionado! Isso é um ótimo sinal de organização!")
+            st.info("🎉 Nenhuma Ordem de Serviço aberta aguardando início no período selecionado! Bom trabalho!")
             
         st.markdown("---") # Separador visual para a próxima seção
         
-        # 2. Carga de Trabalho por Responsável
-        st.subheader("Carga de Trabalho de Ordens de Serviço por Responsável")
-        st.write("Aqui você pode visualizar a quantidade de Ordens de Serviço designadas a cada técnico, separadas entre as que já foram iniciadas ('em andamento') "
-                 "e as que ainda aguardam execução ('designadas, não iniciadas'). Esse painel auxilia na gestão da carga de trabalho.")
+        # 2. Carga de Trabalho de Ordens de Serviço ATIVAS por Responsável
+        st.subheader("Carga de Trabalho de Ordens de Serviço Ativas por Responsável")
+        st.write("Aqui você pode visualizar a quantidade de Ordens de Serviço que estão **ativas (já iniciadas e ainda não concluídas)** para cada técnico.")
 
-        # Filtra as OS com um responsável (não nulo)
-        os_com_responsavel = df_filtrado[df_filtrado["nm_responsavel"].notna()].copy()
+        # Filtra as OS que estão 'Em andamento' (dt_inicio IS NOT NULL AND dt_fim IS NULL)
+        # E que possuem um responsável (nm_responsavel IS NOT NULL)
+        os_em_andamento_ativas = df_filtrado[
+            (df_filtrado["status"] == "Em andamento") & 
+            (df_filtrado["nm_responsavel"].notna()) # Apenas para OS com responsável
+        ].copy()
         
-        if not os_com_responsavel.empty:
-            # 2.1 Contagem de OS em andamento (dt_inicio não nulo)
-            os_em_andamento_real = os_com_responsavel[os_com_responsavel["dt_inicio"].notna()]
-            andamento_por_responsavel = (
-                os_em_andamento_real["nm_responsavel"].value_counts().reset_index()
-            )
-            andamento_por_responsavel.columns = ["Responsável", "Em Andamento"]
-
-            # 2.2 Contagem de OS em aberto designadas (dt_inicio nulo)
-            os_em_aberto_designadas = os_com_responsavel[os_com_responsavel["dt_inicio"].isna()]
-            aberto_por_responsavel = (
-                os_em_aberto_designadas["nm_responsavel"].value_counts().reset_index()
-            )
-            aberto_por_responsavel.columns = ["Responsável", "Designadas (não iniciadas)"]
-
-            # Junta as informações em um único DataFrame
-            carga_por_responsavel = pd.merge(
-                andamento_por_responsavel,
-                aberto_por_responsavel,
-                on="Responsável",
-                how="outer",
-            ).fillna(0)
-            carga_por_responsavel["Em Andamento"] = carga_por_responsavel["Em Andamento"].astype(int)
-            carga_por_responsavel["Designadas (não iniciadas)"] = carga_por_responsavel["Designadas (não iniciadas)"].astype(int)
-
-            # Exibir os técnicos com cartões
+        if not os_em_andamento_ativas.empty:
+            # Conta a quantidade de OS ativas por responsável
+            carga_por_responsavel = os_em_andamento_ativas["nm_responsavel"].value_counts().reset_index()
+            carga_por_responsavel.columns = ["Responsável", "OS Ativas"]
+            
+            # Define o número de colunas para os cards (máximo de 3 para melhor visualização)
             num_responsaveis = len(carga_por_responsavel)
             # Garante pelo menos 1 coluna para evitar erro se não houver responsáveis
             num_colunas = min(3, num_responsaveis if num_responsaveis > 0 else 1) 
@@ -420,11 +404,10 @@ def main():
                 with colunas[idx % num_colunas]: # Distribui os cartões entre as colunas
                     st.info(
                         f"**{row['Responsável']}**\n\n"
-                        f"OS em Andamento: **{row['Em Andamento']}**\n"
-                        f"OS Designadas (não iniciadas): **{row['Designadas (não iniciadas)']}**"
+                        f"OS Ativas: **{int(row['OS Ativas'])}**"
                     )
         else:
-            st.info("Nenhuma Ordem de Serviço no período selecionado foi atribuída a um responsável.")
+            st.info("Nenhuma Ordem de Serviço ativa atribuída a um responsável no período selecionado.")
     # --- FIM DA NOVA ABA ---
     
     st.markdown("---") # Separador visual
