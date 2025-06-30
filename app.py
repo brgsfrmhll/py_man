@@ -8,11 +8,12 @@ from datetime import datetime, timedelta
 import numpy as np
 import traceback
 import sys
+import time # Importar a biblioteca time para a auto-atualização
 
 # Configuração da página do Streamlit
 st.set_page_config(
     page_title="Painel de Ordens de Serviço",
-    page_icon="��",
+    page_icon="🔧",
     layout="wide"
 )
 
@@ -25,8 +26,6 @@ PORT = 1521
 SERVICE = 'dbprod.santacasapc'
 
 # Inicializa o cliente Oracle Instant Client
-# Em ambientes Linux/macOS com o Instant Client configurado corretamente,
-# oracledb geralmente encontra as bibliotecas sem a necessidade de um path explícito.
 try:
     oracledb.init_oracle_client()
 except Exception as e:
@@ -34,18 +33,15 @@ except Exception as e:
     st.sidebar.info("Certifique-se de que o Oracle Instant Client está instalado e configurado corretamente no seu sistema.")
 
 # Função para conectar ao banco de dados Oracle
-# Usando st.cache com allow_output_mutation=True para compatibilidade com versões antigas do Streamlit
 @st.cache(allow_output_mutation=True, suppress_st_warning=True)
 def conectar_ao_banco():
     """Estabelece uma conexão direta com o banco de dados Oracle usando oracledb."""
     try:
-        # Tentativa 1: Usando DSN com formato padrão
         conn = oracledb.connect(user=USERNAME, password=PASSWORD, 
                                dsn=f"{HOST}:{PORT}/{SERVICE}")
         return conn
     except Exception as e:
         try:
-            # Tentativa 2: Usando formato de conexão EZ
             dsn = f"(DESCRIPTION=(ADDRESS=(PROTOCOL=TCP)(HOST={HOST})(PORT={PORT}))(CONNECT_DATA=(SERVICE_NAME={SERVICE})))"
             conn = oracledb.connect(user=USERNAME, password=PASSWORD, dsn=dsn)
             return conn
@@ -55,12 +51,12 @@ def conectar_ao_banco():
             return None
 
 # Função para obter dados das ordens de serviço
-# Adicionamos hash_funcs para lidar com o objeto oracledb.Connection que não é hashable
+# Adicionamos 'refresh_key' para forçar a atualização a cada 30 segundos
 @st.cache(allow_output_mutation=True, suppress_st_warning=True, hash_funcs={oracledb.Connection: lambda _: None})
-def obter_ordens_servico(conn):
+def obter_ordens_servico(conn, refresh_key): # <-- Adicionado refresh_key
     """Obtém os dados das ordens de serviço do grupo de trabalho 12."""
     if conn is None:
-        return pd.DataFrame() # Retorna DataFrame vazio se a conexão for nula
+        return pd.DataFrame() 
     try:
         query = """
         select  nr_sequencia as nr_os, 
@@ -77,7 +73,6 @@ def obter_ordens_servico(conn):
         where   NR_GRUPO_TRABALHO = 12
         """
         
-        # Usar pandas para ler diretamente da conexão
         df = pd.read_sql(query, conn)
         return df
     except Exception as e:
@@ -89,480 +84,352 @@ def obter_ordens_servico(conn):
 def processar_dados(df):
     """Processa os dados para análise e visualização."""
     if df.empty:
-        return df # Retorna o DataFrame vazio se não houver dados para processar
+        return df
 
-    # Converter todos os nomes de colunas para minúsculas para padronização
     df.columns = [col.lower() for col in df.columns]
     
-    # Converter colunas de data para datetime, lidando com erros (coerce)
     colunas_data = ['dt_criacao', 'dt_inicio', 'dt_termino', 'dt_ultima_atualizacao']
     for col in colunas_data:
         if col in df.columns:
             df[col] = pd.to_datetime(df[col], errors='coerce')
     
     # Criar coluna de status
-    # Inicializa todas como 'Em aberto' (dt_inicio e dt_termino são NULL)
-    df['status'] = 'Em aberto'
-    # Se dt_inicio não for nulo (e dt_termino é nulo), status é 'Em andamento'
+    # Baseado na sua nova lógica:
+    # 'Em aberto' (Aguarda Início) = dt_inicio IS NULL AND dt_fim IS NULL
+    # 'Em andamento' (Ativa) = dt_inicio IS NOT NULL AND dt_fim IS NULL
+    # 'Concluída' = dt_fim IS NOT NULL
+    df['status'] = 'Concluída' # Default para ser sobrescrito
+    df.loc[df['dt_inicio'].isna() & df['dt_termino'].isna(), 'status'] = 'Em aberto'
     df.loc[df['dt_inicio'].notna() & df['dt_termino'].isna(), 'status'] = 'Em andamento'
-    # Se dt_termino não for nulo, status é 'Concluída'
-    df.loc[df['dt_termino'].notna(), 'status'] = 'Concluída'
     
-    # Calcular tempo de atendimento (em dias) para OS Concluídas
-    df['tempo_atendimento'] = np.nan # Inicializa com NaN
+    df['tempo_atendimento'] = np.nan
     mask_atendimento = (df['dt_termino'].notna()) & (df['dt_criacao'].notna())
     df.loc[mask_atendimento, 'tempo_atendimento'] = \
         (df.loc[mask_atendimento, 'dt_termino'] - df.loc[mask_atendimento, 'dt_criacao']).dt.total_seconds() / (24*60*60)
     
-    # Calcular tempo de espera para início (em dias) para OS Iniciadas
-    df['tempo_espera'] = np.nan # Inicializa com NaN
+    df['tempo_espera'] = np.nan
     mask_espera = (df['dt_inicio'].notna()) & (df['dt_criacao'].notna())
     df.loc[mask_espera, 'tempo_espera'] = \
         (df.loc[mask_espera, 'dt_inicio'] - df.loc[mask_espera, 'dt_criacao']).dt.total_seconds() / (24*60*60)
     
     return df
 
-# Função principal do aplicativo Streamlit
-def main():
-    # Título do aplicativo na página
-    st.title("🔧 Painel de Acompanhamento de Ordens de Serviço")
-    
-    # Conectar ao banco de dados
-    with st.spinner("Conectando ao banco de dados..."):
-        conn = conectar_ao_banco()
-        
-    if conn is None:
-        st.error("Não foi possível estabelecer conexão com o banco de dados. O painel não poderá exibir dados.")
-        return # Interrompe a execução se a conexão falhar
-    
-    # Obter dados das Ordens de Serviço
-    with st.spinner("Carregando dados das ordens de serviço..."):
-        df_os = obter_ordens_servico(conn)
-        
-    if df_os.empty:
-        st.warning("Não foram encontradas ordens de serviço para o grupo de trabalho 12 ou houve um erro na consulta.")
-        st.info("Verifique se o grupo de trabalho '12' possui dados ou se a query SQL está correta.")
-        return # Interrompe a execução se não houver dados
-
-    # Processar dados obtidos
-    df_os = processar_dados(df_os)
-    
-    # Sidebar para filtros do usuário
-    st.sidebar.header("Filtros")
-    
-    # Filtro de período por data de criação
-    st.sidebar.subheader("Período de Criação da OS")
-    # Define as datas mínima e máxima disponíveis nos dados ou um período padrão
-    min_date_available = df_os['dt_criacao'].min().date() if not df_os['dt_criacao'].isna().all() else datetime.now().date() - timedelta(days=90)
-    max_date_available = df_os['dt_criacao'].max().date() if not df_os['dt_criacao'].isna().all() else datetime.now().date()
-    
-    # Garante que as datas de input não excedam as datas disponíveis ou sejam invertidas
-    data_inicio_input = st.sidebar.date_input("Data Inicial", min_date_available, 
-                                               min_value=min_date_available, max_value=max_date_available)
-    data_fim_input = st.sidebar.date_input("Data Final", max_date_available, 
-                                            min_value=min_date_available, max_value=max_date_available)
-    
-    # Ajuste: Garantir que data_fim_input não seja menor que data_inicio_input
-    if data_inicio_input > data_fim_input:
-        st.sidebar.error("A Data Inicial não pode ser maior que a Data Final.")
-        df_filtrado = pd.DataFrame() # Esvazia o DataFrame para indicar erro ou dados inconsistentes
-    else:
-        # Aplica o filtro de data antes dos outros filtros para performance
-        df_filtrado = df_os[(df_os['dt_criacao'].dt.date >= data_inicio_input) & 
-                                (df_os['dt_criacao'].dt.date <= data_fim_input)].copy()
-    
-    if df_filtrado.empty:
-        st.warning("Não há dados para o período de criação selecionado. Ajuste o filtro de datas.")
-        return # Interrompe a execução se não houver dados no período
-        
-    # Filtro de status
-    status_options = ['Todos'] + sorted(df_filtrado['status'].unique().tolist())
-    status_selecionado = st.sidebar.selectbox("Status", status_options)
-    
-    # Filtro de prioridade
-    prioridade_options = ['Todas'] + sorted(df_filtrado['ie_prioridade'].unique().tolist())
-    prioridade_selecionada = st.sidebar.selectbox("Prioridade", prioridade_options)
-    
-    # Aplica os filtros de status e prioridade
-    if status_selecionado != 'Todos':
-        df_filtrado = df_filtrado[df_filtrado['status'] == status_selecionado]
-    
-    if prioridade_selecionada != 'Todas':
-        df_filtrado = df_filtrado[df_filtrado['ie_prioridade'] == prioridade_selecionada]
-    
-    if df_filtrado.empty:
-        st.warning("Nenhuma Ordem de Serviço encontrada com os filtros aplicados. Tente ajustar os filtros.")
-        return # Interrompe a execução se não houver dados após os filtros
-    
-    # Exibir métricas principais (cards de resumo)
-    st.header("Resumo Geral das Ordens de Serviço Filtradas")
-    col1, col2, col3, col4 = st.columns(4) # Cria 4 colunas para os cards
-    
-    with col1:
-        st.metric("Total de OS", len(df_filtrado))
-    
-    with col2:
-        concluidas = len(df_filtrado[df_filtrado['status'] == 'Concluída'])
-        st.metric("Concluídas", concluidas)
-    
-    with col3:
-        em_andamento = len(df_filtrado[df_filtrado['status'] == 'Em andamento'])
-        st.metric("Em andamento", em_andamento)
-    
-    with col4:
-        em_aberto = len(df_filtrado[df_filtrado['status'] == 'Em aberto'])
-        st.metric("Em aberto", em_aberto)
-    
-    st.markdown("---") # Separador visual
-
-    # Seção de Análise - Navegação por abas (usando st.radio para compatibilidade)
-    st.header("Análise Detalhada das Ordens de Serviço")
-    tab_selecionada = st.radio(
-        "Selecione uma visualização:",
-        ["Status e Prioridade", "Tempo de Atendimento", "Solicitantes", "OS sem Responsável e Carga de Trabalho"],
-        horizontal=True # Deixa as opções do radio buttons na horizontal
+# Função para exibir o Painel de Acompanhamento
+def exibir_painel_acompanhamento(df_filtrado):
+    st.subheader("Ordens de Serviço Abertas e Aguardando Início")
+    st.write(
+        "Esta seção lista as Ordens de Serviço que ainda não foram iniciadas (`dt_inicio` é nulo) e não foram concluídas (`dt_termino` é nulo). "
+        "Elas estão ordenadas da mais antiga para a mais recente, ajudando a identificar itens que podem estar parados, independentemente de terem um responsável atribuído."
     )
     
-    st.subheader(f"Visualização: {tab_selecionada}")
+    # Lista de OS Abertas e Aguardando Início (dt_inicio IS NULL AND dt_fim IS NULL)
+    os_aguardando_inicio = df_filtrado[
+        df_filtrado["status"] == "Em aberto" 
+    ].copy() 
+
+    os_aguardando_inicio = os_aguardando_inicio.sort_values(by="dt_criacao", ascending=True)
+
+    if not os_aguardando_inicio.empty:
+        st.success(f"Foram encontradas **{len(os_aguardando_inicio)}** Ordens de Serviço abertas e aguardando início.")
+        st.dataframe(os_aguardando_inicio[[
+            'nr_os', 'ds_solicitacao', 'nm_solicitante', 'ie_prioridade', 'dt_criacao', 'nm_responsavel'
+        ]].rename(columns={
+            'nr_os': 'Nº OS', 
+            'ds_solicitacao': 'Solicitação', 
+            'nm_solicitante': 'Solicitante',
+            'ie_prioridade': 'Prioridade', 
+            'dt_criacao': 'Data Criação',
+            'nm_responsavel': 'Responsável Atual' 
+        })) 
+    else:
+        st.info("🎉 Nenhuma Ordem de Serviço aberta aguardando início no período selecionado! Bom trabalho!")
+        
+    st.markdown("---")
     
-    if tab_selecionada == "Status e Prioridade":
-        col1, col2 = st.columns(2)
-        
-        with col1:
-            st.write("#### Distribuição de OS por Status")
-            # Gráfico de pizza de status
-            status_counts = df_filtrado['status'].value_counts().reset_index()
-            status_counts.columns = ['Status', 'Quantidade']
-            
-            fig = px.pie(
-                status_counts, 
-                values='Quantidade', 
-                names='Status',
-                title='Distribuição por Status',
-                color='Status',
-                color_discrete_map={
-                    'Concluída': '#00CC96',     # Verde
-                    'Em andamento': '#FFA15A',  # Laranja
-                    'Em aberto': '#EF553B'      # Vermelho
-                }
-            )
-            fig.update_traces(textposition='inside', textinfo='percent+label', 
-                              marker=dict(line=dict(color='#000000', width=1))) # Borda para fatias
-            st.plotly_chart(fig, use_container_width=True)
-        
-        with col2:
-            st.write("#### Quantidade de OS por Prioridade e Status")
-            # Gráfico de barras por prioridade e status
-            prioridade_counts = df_filtrado.groupby(['ie_prioridade', 'status']).size().reset_index(name='Quantidade')
-            
-            fig = px.bar(
-                prioridade_counts,
-                x='ie_prioridade',
-                y='Quantidade',
-                color='status',
-                barmode='group', # Barras agrupadas por prioridade
-                title='Distribuição por Prioridade e Status',
-                labels={'ie_prioridade': 'Prioridade', 'Quantidade': 'Quantidade de OS'},
-                color_discrete_map={
-                    'Concluída': '#00CC96',
-                    'Em andamento': '#FFA15A',
-                    'Em aberto': '#EF553B'
-                }
-            )
-            fig.update_layout(xaxis_title="Prioridade", yaxis_title="Quantidade de OS")
-            st.plotly_chart(fig, use_container_width=True)
+    st.subheader("Carga de Trabalho de Ordens de Serviço Ativas por Responsável")
+    st.write("Aqui você pode visualizar a quantidade de Ordens de Serviço que estão **ativas (já iniciadas e ainda não concluídas)** para cada técnico.")
+
+    # Filtra as OS que estão 'Em andamento' (dt_inicio IS NOT NULL AND dt_fim IS NULL)
+    # E que possuem um responsável (nm_responsavel IS NOT NULL)
+    os_em_andamento_ativas = df_filtrado[
+        (df_filtrado["status"] == "Em andamento") & 
+        (df_filtrado["nm_responsavel"].notna()) 
+    ].copy()
     
-    elif tab_selecionada == "Tempo de Atendimento":
-        col1, col2 = st.columns(2)
+    if not os_em_andamento_ativas.empty:
+        carga_por_responsavel = os_em_andamento_ativas["nm_responsavel"].value_counts().reset_index()
+        carga_por_responsavel.columns = ["Responsável", "OS Ativas"]
         
-        with col1:
-            st.write("#### Tempo Médio de Atendimento por Prioridade")
-            # Gráfico de tempo médio de atendimento por prioridade
-            # Filtra apenas OS Concluídas para calcular tempo de atendimento
-            df_concluidas = df_filtrado[df_filtrado['status'] == 'Concluída']
-            tempo_medio = df_concluidas.groupby('ie_prioridade')['tempo_atendimento'].mean().reset_index()
-            tempo_medio = tempo_medio.sort_values('tempo_atendimento', ascending=False) # Da maior média para a menor
-            
-            if not tempo_medio.empty:
-                fig = px.bar(
-                    tempo_medio,
-                    x='ie_prioridade',
-                    y='tempo_atendimento',
-                    title='Tempo Médio de Atendimento por Prioridade (dias)',
-                    labels={'ie_prioridade': 'Prioridade', 'tempo_atendimento': 'Tempo (dias)'},
-                    color='tempo_atendimento',
-                    color_continuous_scale=px.colors.sequential.Viridis # Escala de cores contínua
+        num_responsaveis = len(carga_por_responsavel)
+        num_colunas = min(3, num_responsaveis if num_responsaveis > 0 else 1) 
+        colunas = st.columns(num_colunas)
+
+        for idx, row in carga_por_responsavel.iterrows():
+            with colunas[idx % num_colunas]: 
+                st.info( # Usando st.info para dar cor azul ao card
+                    f"**{row['Responsável']}**\n\n"
+                    f"OS Ativas: **{int(row['OS Ativas'])}**"
                 )
-                fig.update_layout(xaxis_title="Prioridade", yaxis_title="Tempo Médio (dias)")
-                st.plotly_chart(fig, use_container_width=True)
-            else:
-                st.info("Não há Ordens de Serviço Concluídas no período selecionado para calcular o tempo médio de atendimento.")
-        
-        with col2:
-            st.write("#### Tempo Médio de Espera para Início por Prioridade")
-            # Gráfico de tempo médio de espera por prioridade
-            # Filtra apenas OS que já iniciaram para calcular tempo de espera
-            df_iniciadas = df_filtrado[df_filtrado['status'].isin(['Em andamento', 'Concluída'])]
-            tempo_espera = df_iniciadas.groupby('ie_prioridade')['tempo_espera'].mean().reset_index()
-            tempo_espera = tempo_espera.sort_values('tempo_espera', ascending=False) # Da maior média para a menor
-            
-            if not tempo_espera.empty:
-                fig = px.bar(
-                    tempo_espera,
-                    x='ie_prioridade',
-                    y='tempo_espera',
-                    title='Tempo Médio de Espera por Prioridade (dias)',
-                    labels={'ie_prioridade': 'Prioridade', 'tempo_espera': 'Tempo (dias)'},
-                    color='tempo_espera',
-                    color_continuous_scale=px.colors.sequential.Viridis
-                )
-                fig.update_layout(xaxis_title="Prioridade", yaxis_title="Tempo Médio (dias)")
-                st.plotly_chart(fig, use_container_width=True)
-            else:
-                st.info("Não há Ordens de Serviço que iniciaram no período selecionado para calcular o tempo médio de espera.")
+    else:
+        st.info("Nenhuma Ordem de Serviço ativa atribuída a um responsável no período selecionado.")
+
+
+# Função principal do aplicativo Streamlit
+def main():
+    # Placeholder para a auto-atualização. O Streamlit vai re-executar tudo aqui.
+    placeholder = st.empty()
     
-    elif tab_selecionada == "Solicitantes":
-        st.write("#### Top 10 Solicitantes com Mais Ordens de Serviço")
-        # Top 10 solicitantes
-        top_solicitantes = df_filtrado['nm_solicitante'].value_counts().reset_index()
-        top_solicitantes.columns = ['Solicitante', 'Quantidade']
-        top_solicitantes = top_solicitantes.head(10) # Limita aos 10 primeiros
-        
-        if not top_solicitantes.empty:
-            fig = px.bar(
-                top_solicitantes,
-                x='Quantidade',
-                y='Solicitante',
-                title='Top 10 Solicitantes',
-                orientation='h', # Barras horizontais
-                color='Quantidade',
-                color_continuous_scale=px.colors.sequential.Viridis
+    while True: # Loop infinito para auto-atualização
+        with placeholder.container():
+            # Título do aplicativo na página
+            st.title("🔧 Painel de Acompanhamento de Ordens de Serviço")
+            
+            # Conectar ao banco de dados
+            with st.spinner("Conectando ao banco de dados..."):
+                conn = conectar_ao_banco()
+                
+            if conn is None:
+                st.error("Não foi possível estabelecer conexão com o banco de dados. O painel não poderá exibir dados.")
+                time.sleep(30) # Espera antes de tentar novamente
+                continue # Volta para o início do loop
+            
+            # Obter dados das Ordens de Serviço
+            # time.time() // 30 cria uma chave que muda a cada 30 segundos
+            with st.spinner("Carregando dados das ordens de serviço..."):
+                df_os = obter_ordens_servico(conn, time.time() // 30) # <-- refresh_key aqui
+                
+            if df_os.empty:
+                st.warning("Não foram encontradas ordens de serviço para o grupo de trabalho 12 ou houve um erro na consulta.")
+                st.info("Verifique se o grupo de trabalho '12' possui dados ou se a query SQL está correta.")
+                time.sleep(30)
+                continue
+            
+            # Processar dados obtidos
+            df_os = processar_dados(df_os)
+            
+            # Sidebar para filtros do usuário
+            st.sidebar.header("Filtros")
+            
+            # Filtro de período por data de criação
+            st.sidebar.subheader("Período de Criação da OS")
+            min_date_available = df_os['dt_criacao'].min().date() if not df_os['dt_criacao'].isna().all() else datetime.now().date() - timedelta(days=90)
+            max_date_available = df_os['dt_criacao'].max().date() if not df_os['dt_criacao'].isna().all() else datetime.now().date()
+            
+            data_inicio_input = st.sidebar.date_input("Data Inicial", min_date_available, 
+                                                       min_value=min_date_available, max_value=max_date_available)
+            data_fim_input = st.sidebar.date_input("Data Final", max_date_available, 
+                                                    min_value=min_date_available, max_value=max_date_available)
+            
+            if data_inicio_input > data_fim_input:
+                st.sidebar.error("A Data Inicial não pode ser maior que a Data Final.")
+                df_filtrado = pd.DataFrame() 
+            else:
+                df_filtrado = df_os[(df_os['dt_criacao'].dt.date >= data_inicio_input) & 
+                                        (df_os['dt_criacao'].dt.date <= data_fim_input)].copy()
+            
+            if df_filtrado.empty:
+                st.warning("Não há dados para o período de criação selecionado. Ajuste o filtro de datas.")
+                time.sleep(30)
+                continue
+                
+            # Filtro de status
+            status_options = ['Todos'] + sorted(df_filtrado['status'].unique().tolist())
+            status_selecionado = st.sidebar.selectbox("Status", status_options)
+            
+            # Filtro de prioridade
+            prioridade_options = ['Todas'] + sorted(df_filtrado['ie_prioridade'].unique().tolist())
+            prioridade_selecionada = st.sidebar.selectbox("Prioridade", prioridade_options)
+            
+            # Aplica os filtros de status e prioridade
+            if status_selecionado != 'Todos':
+                df_filtrado = df_filtrado[df_filtrado['status'] == status_selecionado]
+            
+            if prioridade_selecionada != 'Todas':
+                df_filtrado = df_filtrado[df_filtrado['ie_prioridade'] == prioridade_selecionada]
+            
+            if df_filtrado.empty:
+                st.warning("Nenhuma Ordem de Serviço encontrada com os filtros aplicados. Tente ajustar os filtros.")
+                time.sleep(30)
+                continue
+            
+            # Exibir métricas principais (cards de resumo)
+            st.header("Resumo Geral das Ordens de Serviço Filtradas")
+            col1, col2, col3, col4 = st.columns(4) 
+            
+            with col1:
+                st.metric("Total de OS", len(df_filtrado))
+            
+            with col2:
+                concluidas = len(df_filtrado[df_filtrado['status'] == 'Concluída'])
+                st.metric("Concluídas", concluidas)
+            
+            with col3:
+                em_andamento = len(df_filtrado[df_filtrado['status'] == 'Em andamento'])
+                st.metric("Em andamento", em_andamento)
+            
+            with col4:
+                em_aberto = len(df_filtrado[df_filtrado['status'] == 'Em aberto'])
+                st.metric("Em aberto", em_aberto)
+            
+            st.markdown("---")
+
+            # Seção de Análise - Navegação por abas
+            st.header("Análise Detalhada das Ordens de Serviço")
+            tab_selecionada = st.radio(
+                "Selecione uma visualização:",
+                ["Status e Prioridade", "Tempo de Atendimento", "Solicitantes", "Painel de Acompanhamento"], # <-- Nova aba aqui
+                horizontal=True
             )
-            fig.update_layout(yaxis={'categoryorder':'total ascending'}) # Ordena os solicitantes do menor para o maior na barra
-            st.plotly_chart(fig, use_container_width=True)
-        else:
-            st.info("Não há solicitantes com Ordens de Serviço no período selecionado.")
-
-    # --- NOVA ABA: OS sem Responsável e Carga de Trabalho ---
-    elif tab_selecionada == "OS sem Responsável e Carga de Trabalho":
-        st.subheader("Ordens de Serviço Abertas e Aguardando Início")
-        st.write(
-            "Esta seção lista as Ordens de Serviço que ainda não foram iniciadas (`dt_inicio` é nulo) e não foram concluídas (`dt_termino` é nulo). "
-            "Elas estão ordenadas da mais antiga para a mais recente, ajudando a identificar itens que podem estar parados, independentemente de terem um responsável atribuído."
-        )
-        
-        # 1. Lista de OS Abertas e Aguardando Início (dt_inicio IS NULL AND dt_fim IS NULL)
-        # Isso corresponde diretamente ao status 'Em aberto' definido em processar_dados
-        os_aguardando_inicio = df_filtrado[
-            df_filtrado["status"] == "Em aberto" 
-        ].copy() 
-
-        # Ordena pela data de criação, da mais antiga para a mais nova
-        os_aguardando_inicio = os_aguardando_inicio.sort_values(by="dt_criacao", ascending=True)
-
-        if not os_aguardando_inicio.empty:
-            st.success(f"Foram encontradas **{len(os_aguardando_inicio)}** Ordens de Serviço abertas e aguardando início.")
-            # Seleciona e renomeia colunas para melhor visualização na tabela
-            st.dataframe(os_aguardando_inicio[[
-                'nr_os', 'ds_solicitacao', 'nm_solicitante', 'ie_prioridade', 'dt_criacao', 'nm_responsavel'
-            ]].rename(columns={
-                'nr_os': 'Nº OS', 
-                'ds_solicitacao': 'Solicitação', 
-                'nm_solicitante': 'Solicitante',
-                'ie_prioridade': 'Prioridade', 
-                'dt_criacao': 'Data Criação',
-                'nm_responsavel': 'Responsável Atual' # Renomeia para clareza
-            })) # use_container_width removido para compatibilidade
-        else:
-            st.info("🎉 Nenhuma Ordem de Serviço aberta aguardando início no período selecionado! Bom trabalho!")
             
-        st.markdown("---") # Separador visual para a próxima seção
-        
-        # 2. Carga de Trabalho de Ordens de Serviço ATIVAS por Responsável
-        st.subheader("Carga de Trabalho de Ordens de Serviço Ativas por Responsável")
-        st.write("Aqui você pode visualizar a quantidade de Ordens de Serviço que estão **ativas (já iniciadas e ainda não concluídas)** para cada técnico.")
-
-        # Filtra as OS que estão 'Em andamento' (dt_inicio IS NOT NULL AND dt_fim IS NULL)
-        # E que possuem um responsável (nm_responsavel IS NOT NULL)
-        os_em_andamento_ativas = df_filtrado[
-            (df_filtrado["status"] == "Em andamento") & 
-            (df_filtrado["nm_responsavel"].notna()) # Apenas para OS com responsável
-        ].copy()
-        
-        if not os_em_andamento_ativas.empty:
-            # Conta a quantidade de OS ativas por responsável
-            carga_por_responsavel = os_em_andamento_ativas["nm_responsavel"].value_counts().reset_index()
-            carga_por_responsavel.columns = ["Responsável", "OS Ativas"]
+            st.subheader(f"Visualização: {tab_selecionada}")
             
-            # Define o número de colunas para os cards (máximo de 3 para melhor visualização)
-            num_responsaveis = len(carga_por_responsavel)
-            # Garante pelo menos 1 coluna para evitar erro se não houver responsáveis
-            num_colunas = min(3, num_responsaveis if num_responsaveis > 0 else 1) 
-            colunas = st.columns(num_colunas)
+            if tab_selecionada == "Status e Prioridade":
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.write("#### Distribuição de OS por Status")
+                    status_counts = df_filtrado['status'].value_counts().reset_index()
+                    status_counts.columns = ['Status', 'Quantidade']
+                    fig = px.pie(status_counts, values='Quantidade', names='Status', title='Distribuição por Status',
+                                 color='Status', color_discrete_map={'Concluída': '#00CC96', 'Em andamento': '#FFA15A', 'Em aberto': '#EF553B'})
+                    fig.update_traces(textposition='inside', textinfo='percent+label', marker=dict(line=dict(color='#000000', width=1)))
+                    st.plotly_chart(fig, use_container_width=True)
+                with col2:
+                    st.write("#### Quantidade de OS por Prioridade e Status")
+                    prioridade_counts = df_filtrado.groupby(['ie_prioridade', 'status']).size().reset_index(name='Quantidade')
+                    fig = px.bar(prioridade_counts, x='ie_prioridade', y='Quantidade', color='status', barmode='group',
+                                 title='Distribuição por Prioridade e Status', labels={'ie_prioridade': 'Prioridade', 'Quantidade': 'Quantidade de OS'},
+                                 color_discrete_map={'Concluída': '#00CC96', 'Em andamento': '#FFA15A', 'Em aberto': '#EF553B'})
+                    fig.update_layout(xaxis_title="Prioridade", yaxis_title="Quantidade de OS")
+                    st.plotly_chart(fig, use_container_width=True)
+            
+            elif tab_selecionada == "Tempo de Atendimento":
+                col1, col2 = st.columns(2)
+                with col1:
+                    st.write("#### Tempo Médio de Atendimento por Prioridade")
+                    df_concluidas = df_filtrado[df_filtrado['status'] == 'Concluída']
+                    tempo_medio = df_concluidas.groupby('ie_prioridade')['tempo_atendimento'].mean().reset_index()
+                    tempo_medio = tempo_medio.sort_values('tempo_atendimento', ascending=False)
+                    if not tempo_medio.empty:
+                        fig = px.bar(tempo_medio, x='ie_prioridade', y='tempo_atendimento', title='Tempo Médio de Atendimento por Prioridade (dias)',
+                                     labels={'ie_prioridade': 'Prioridade', 'tempo_atendimento': 'Tempo (dias)'}, color='tempo_atendimento',
+                                     color_continuous_scale=px.colors.sequential.Viridis)
+                        fig.update_layout(xaxis_title="Prioridade", yaxis_title="Tempo Médio (dias)")
+                        st.plotly_chart(fig, use_container_width=True)
+                    else: st.info("Não há Ordens de Serviço Concluídas no período selecionado.")
+                with col2:
+                    st.write("#### Tempo Médio de Espera para Início por Prioridade")
+                    df_iniciadas = df_filtrado[df_filtrado['status'].isin(['Em andamento', 'Concluída'])]
+                    tempo_espera = df_iniciadas.groupby('ie_prioridade')['tempo_espera'].mean().reset_index()
+                    tempo_espera = tempo_espera.sort_values('tempo_espera', ascending=False)
+                    if not tempo_espera.empty:
+                        fig = px.bar(tempo_espera, x='ie_prioridade', y='tempo_espera', title='Tempo Médio de Espera por Prioridade (dias)',
+                                     labels={'ie_prioridade': 'Prioridade', 'tempo_espera': 'Tempo (dias)'}, color='tempo_espera',
+                                     color_continuous_scale=px.colors.sequential.Viridis)
+                        fig.update_layout(xaxis_title="Prioridade", yaxis_title="Tempo Médio (dias)")
+                        st.plotly_chart(fig, use_container_width=True)
+                    else: st.info("Não há Ordens de Serviço que iniciaram no período selecionado.")
+            
+            elif tab_selecionada == "Solicitantes":
+                st.write("#### Top 10 Solicitantes com Mais Ordens de Serviço")
+                top_solicitantes = df_filtrado['nm_solicitante'].value_counts().reset_index()
+                top_solicitantes.columns = ['Solicitante', 'Quantidade']
+                top_solicitantes = top_solicitantes.head(10)
+                if not top_solicitantes.empty:
+                    fig = px.bar(top_solicitantes, x='Quantidade', y='Solicitante', title='Top 10 Solicitantes',
+                                 orientation='h', color='Quantidade', color_continuous_scale=px.colors.sequential.Viridis)
+                    fig.update_layout(yaxis={'categoryorder':'total ascending'})
+                    st.plotly_chart(fig, use_container_width=True)
+                else: st.info("Não há solicitantes com Ordens de Serviço no período selecionado.")
 
-            for idx, row in carga_por_responsavel.iterrows():
-                with colunas[idx % num_colunas]: # Distribui os cartões entre as colunas
-                    st.info(
-                        f"**{row['Responsável']}**\n\n"
-                        f"OS Ativas: **{int(row['OS Ativas'])}**"
-                    )
-        else:
-            st.info("Nenhuma Ordem de Serviço ativa atribuída a um responsável no período selecionado.")
-    # --- FIM DA NOVA ABA ---
-    
-    st.markdown("---") # Separador visual
+            elif tab_selecionada == "Painel de Acompanhamento": # <-- Novo bloco para a nova aba
+                exibir_painel_acompanhamento(df_filtrado)
+            
+            st.markdown("---") # Separador visual para as seções abaixo que não são controladas por abas
 
-    # Linha do tempo das OS criadas
-    st.header("Evolução Mensal das Ordens de Serviço por Status")
-    st.write("Este gráfico mostra como o número de Ordens de Serviço em diferentes status (Concluídas, Em Andamento, Em Aberto) evoluiu ao longo do tempo, com base na data de criação.")
-    
-    # Criar dataframe para linha do tempo
-    df_timeline = df_filtrado.copy()
-    # Cria uma coluna 'mes_ano' no formato 'AAAA-MM' para agrupamento e ordenação
-    df_timeline['mes_ano'] = df_timeline['dt_criacao'].dt.strftime('%Y-%m')
-    timeline_data = df_timeline.groupby(['mes_ano', 'status']).size().reset_index(name='quantidade')
-    
-    # Ordenar por mês-ano para garantir a sequência correta no gráfico
-    timeline_data['mes_ano_dt'] = pd.to_datetime(timeline_data['mes_ano'] + '-01')
-    timeline_data = timeline_data.sort_values('mes_ano_dt')
-    
-    if not timeline_data.empty:
-        fig = px.line(
-            timeline_data,
-            x='mes_ano',
-            y='quantidade',
-            color='status',
-            title='Evolução de OS por Mês',
-            labels={'mes_ano': 'Mês/Ano', 'quantidade': 'Quantidade de OS'},
-            markers=True, # Adiciona marcadores nos pontos de dados
-            color_discrete_map={
-                'Concluída': '#00CC96',
-                'Em andamento': '#FFA15A',
-                'Em aberto': '#EF553B'
+            # Linha do tempo das OS criadas
+            st.header("Evolução Mensal das Ordens de Serviço por Status")
+            st.write("Este gráfico mostra como o número de Ordens de Serviço em diferentes status (Concluídas, Em Andamento, Em Aberto) evoluiu ao longo do tempo, com base na data de criação.")
+            
+            df_timeline = df_filtrado.copy()
+            df_timeline['mes_ano'] = df_timeline['dt_criacao'].dt.strftime('%Y-%m')
+            timeline_data = df_timeline.groupby(['mes_ano', 'status']).size().reset_index(name='quantidade')
+            timeline_data['mes_ano_dt'] = pd.to_datetime(timeline_data['mes_ano'] + '-01')
+            timeline_data = timeline_data.sort_values('mes_ano_dt')
+            
+            if not timeline_data.empty:
+                fig = px.line(timeline_data, x='mes_ano', y='quantidade', color='status', title='Evolução de OS por Mês',
+                              labels={'mes_ano': 'Mês/Ano', 'quantidade': 'Quantidade de OS'}, markers=True,
+                              color_discrete_map={'Concluída': '#00CC96', 'Em andamento': '#FFA15A', 'Em aberto': '#EF553B'})
+                fig.update_layout(xaxis_title="Mês/Ano", yaxis_title="Quantidade de OS")
+                st.plotly_chart(fig, use_container_width=True)
+            else: st.info("Não há dados de linha do tempo para exibir com os filtros atuais.")
+            
+            st.markdown("---") 
+
+            # Tabela de detalhamento das Ordens de Serviço
+            st.header("Detalhamento das Ordens de Serviço Filtradas")
+            st.write("Visualize todas as Ordens de Serviço que correspondem aos filtros selecionados, com informações detalhadas para cada uma.")
+            
+            colunas_exibir = ['nr_os', 'ds_solicitacao', 'nm_solicitante', 'ie_prioridade', 
+                              'dt_criacao', 'dt_inicio', 'dt_termino', 'nm_responsavel', 'status']
+            colunas_existentes = [col for col in colunas_exibir if col in df_filtrado.columns]
+            df_exibir = df_filtrado[colunas_existentes].copy()
+            
+            colunas_renomeadas = {
+                'nr_os': 'Nº OS', 'ds_solicitacao': 'Solicitação', 'nm_solicitante': 'Solicitante',
+                'ie_prioridade': 'Prioridade', 'dt_criacao': 'Data Criação', 'dt_inicio': 'Data Início',
+                'dt_termino': 'Data Término', 'nm_responsavel': 'Responsável', 'status': 'Status'
             }
-        )
-        fig.update_layout(xaxis_title="Mês/Ano", yaxis_title="Quantidade de OS")
-        st.plotly_chart(fig, use_container_width=True)
-    else:
-        st.info("Não há dados de linha do tempo para exibir com os filtros atuais.")
-    
-    st.markdown("---") # Separador visual
+            renomeacao = {k: v for k, v in colunas_renomeadas.items() if k in df_exibir.columns}
+            df_exibir = df_exibir.rename(columns=renomeacao)
+            
+            for col in ['Data Criação', 'Data Início', 'Data Término']:
+                if col in df_exibir.columns and df_exibir[col].dtype.kind == 'M': 
+                    df_exibir[col] = df_exibir[col].dt.strftime('%d/%m/%Y %H:%M').fillna('N/A')
+            
+            st.dataframe(df_exibir) 
+            
+            st.markdown("---") 
 
-    # Tabela de detalhamento das Ordens de Serviço
-    st.header("Detalhamento das Ordens de Serviço Filtradas")
-    st.write("Visualize todas as Ordens de Serviço que correspondem aos filtros selecionados, com informações detalhadas para cada uma.")
-    
-    # Selecionar colunas para exibição na tabela principal
-    colunas_exibir = ['nr_os', 'ds_solicitacao', 'nm_solicitante', 'ie_prioridade', 
-                      'dt_criacao', 'dt_inicio', 'dt_termino', 'nm_responsavel', 'status']
-    
-    # Verifica quais colunas da lista existem no DataFrame filtrado
-    colunas_existentes = [col for col in colunas_exibir if col in df_filtrado.columns]
-    
-    # Cria uma cópia do DataFrame com apenas as colunas existentes para exibição
-    df_exibir = df_filtrado[colunas_existentes].copy()
-    
-    # Dicionário para renomear colunas para apresentação amigável
-    colunas_renomeadas = {
-        'nr_os': 'Nº OS',
-        'ds_solicitacao': 'Solicitação',
-        'nm_solicitante': 'Solicitante',
-        'ie_prioridade': 'Prioridade',
-        'dt_criacao': 'Data Criação',
-        'dt_inicio': 'Data Início',
-        'dt_termino': 'Data Término',
-        'nm_responsavel': 'Responsável',
-        'status': 'Status'
-    }
-    
-    # Aplica o renomeamento apenas para as colunas que existem no df_exibir
-    renomeacao = {k: v for k, v in colunas_renomeadas.items() if k in df_exibir.columns}
-    df_exibir = df_exibir.rename(columns=renomeacao)
-    
-    # Formatação de colunas de data para exibição mais legível
-    for col in ['Data Criação', 'Data Início', 'Data Término']:
-        if col in df_exibir.columns and df_exibir[col].dtype.kind == 'M':  # Verifica se é uma coluna datetime
-            df_exibir[col] = df_exibir[col].dt.strftime('%d/%m/%Y %H:%M').fillna('N/A')
-    
-    # Exibir tabela interativa
-    st.dataframe(df_exibir) # use_container_width removido para compatibilidade
-    
-    st.markdown("---") # Separador visual
-
-    # Detalhes de uma Ordem de Serviço selecionada
-    st.header("Detalhes da Ordem de Serviço Selecionada")
-    st.write("Selecione uma Ordem de Serviço para ver todos os detalhes, incluindo descrições completas e tempos calculados.")
-    
-    # Verifica se a coluna 'nr_os' existe no DataFrame filtrado para a seleção
-    if 'nr_os' in df_filtrado.columns and not df_filtrado['nr_os'].empty:
-        # Cria um selectbox para o usuário escolher uma OS
-        os_selecionada_nr = st.selectbox("Selecione o Número da OS para ver detalhes:", 
-                                         sorted(df_filtrado['nr_os'].unique().tolist()))
+            # Detalhes de uma Ordem de Serviço selecionada
+            st.header("Detalhes da Ordem de Serviço Selecionada")
+            st.write("Selecione uma Ordem de Serviço para ver todos os detalhes, incluindo descrições completas e tempos calculados.")
+            
+            if 'nr_os' in df_filtrado.columns and not df_filtrado['nr_os'].empty:
+                os_selecionada_nr = st.selectbox("Selecione o Número da OS para ver detalhes:", sorted(df_filtrado['nr_os'].unique().tolist()))
+                if os_selecionada_nr:
+                    os_detalhes = df_filtrado[df_filtrado['nr_os'] == os_selecionada_nr].iloc[0]
+                    col_left, col_right = st.columns(2)
+                    with col_left:
+                        st.subheader(f"OS #{os_detalhes['nr_os']}")
+                        st.write(f"**Solicitação:** {os_detalhes['ds_solicitacao'] if pd.notna(os_detalhes['ds_solicitacao']) else 'N/A'}")
+                        st.write(f"**Solicitante:** {os_detalhes['nm_solicitante'] if pd.notna(os_detalhes['nm_solicitante']) else 'N/A'}")
+                        st.write(f"**Prioridade:** {os_detalhes['ie_prioridade'] if pd.notna(os_detalhes['ie_prioridade']) else 'N/A'}")
+                        st.write(f"**Status:** {os_detalhes['status'] if pd.notna(os_detalhes['status']) else 'N/A'}")
+                    with col_right:
+                        st.write(f"**Data de Criação:** {os_detalhes['dt_criacao'].strftime('%d/%m/%Y %H:%M') if pd.notna(os_detalhes['dt_criacao']) else 'N/A'}")
+                        st.write(f"**Data de Início:** {os_detalhes['dt_inicio'].strftime('%d/%m/%Y %H:%M') if pd.notna(os_detalhes['dt_inicio']) else 'N/A'}")
+                        st.write(f"**Data de Término:** {os_detalhes['dt_termino'].strftime('%d/%m/%Y %H:%M') if pd.notna(os_detalhes['dt_termino']) else 'N/A'}")
+                        st.write(f"**Responsável:** {os_detalhes['nm_responsavel'] if pd.notna(os_detalhes['nm_responsavel']) else 'N/A'}")
+                        st.write(f"**Última Atualização:** {os_detalhes['dt_ultima_atualizacao'].strftime('%d/%m/%Y %H:%M') if pd.notna(os_detalhes['dt_ultima_atualizacao']) else 'N/A'}")
+                    
+                    if 'ds_completa_servico' in os_detalhes and pd.notna(os_detalhes['ds_completa_servico']):
+                        st.subheader("Descrição Completa da Ordem de Serviço")
+                        st.write(os_detalhes['ds_completa_servico'])
+                    else: st.subheader("Descrição Completa da Ordem de Serviço"); st.info("Sem descrição detalhada disponível para esta OS.")
+                    
+                    st.subheader("Métricas de Tempo da OS")
+                    if pd.notna(os_detalhes['dt_criacao']) and pd.notna(os_detalhes['dt_inicio']):
+                        tempo_espera = (os_detalhes['dt_inicio'] - os_detalhes['dt_criacao']).total_seconds() / (24*60*60)
+                        st.write(f"**Tempo de espera para início:** {tempo_espera:.2f} dias")
+                    else: st.write("**Tempo de espera para início:** N/A (OS não iniciada ou sem data de criação/início)")
+                    if pd.notna(os_detalhes['dt_criacao']) and pd.notna(os_detalhes['dt_termino']):
+                        tempo_total = (os_detalhes['dt_termino'] - os_detalhes['dt_criacao']).total_seconds() / (24*60*60)
+                        st.write(f"**Tempo total de atendimento:** {tempo_total:.2f} dias")
+                    else: st.write("**Tempo total de atendimento:** N/A (OS não concluída ou sem data de criação/término)")
+            else: st.info("Nenhuma Ordem de Serviço disponível para seleção ou a coluna 'nr_os' não foi encontrada.")
         
-        if os_selecionada_nr:
-            # Filtra o DataFrame para obter os detalhes da OS selecionada
-            os_detalhes = df_filtrado[df_filtrado['nr_os'] == os_selecionada_nr].iloc[0] # Pega a primeira linha correspondente
-            
-            col_left, col_right = st.columns(2) # Duas colunas para organizar os detalhes
-            
-            with col_left:
-                st.subheader(f"OS #{os_detalhes['nr_os']}")
-                
-                # Exibe detalhes básicos, verificando a existência da coluna e tratando valores nulos
-                if 'ds_solicitacao' in os_detalhes and pd.notna(os_detalhes['ds_solicitacao']):
-                    st.write(f"**Solicitação:** {os_detalhes['ds_solicitacao']}")
-                else: st.write("**Solicitação:** N/A")
-                
-                if 'nm_solicitante' in os_detalhes and pd.notna(os_detalhes['nm_solicitante']):
-                    st.write(f"**Solicitante:** {os_detalhes['nm_solicitante']}")
-                else: st.write("**Solicitante:** N/A")
-                
-                if 'ie_prioridade' in os_detalhes and pd.notna(os_detalhes['ie_prioridade']):
-                    st.write(f"**Prioridade:** {os_detalhes['ie_prioridade']}")
-                else: st.write("**Prioridade:** N/A")
-                
-                if 'status' in os_detalhes and pd.notna(os_detalhes['status']):
-                    st.write(f"**Status:** {os_detalhes['status']}")
-                else: st.write("**Status:** N/A")
-                
-            with col_right:
-                # Exibe datas e responsável, formatando e tratando nulos
-                st.write(f"**Data de Criação:** {os_detalhes['dt_criacao'].strftime('%d/%m/%Y %H:%M') if pd.notna(os_detalhes['dt_criacao']) else 'N/A'}")
-                st.write(f"**Data de Início:** {os_detalhes['dt_inicio'].strftime('%d/%m/%Y %H:%M') if pd.notna(os_detalhes['dt_inicio']) else 'N/A'}")
-                st.write(f"**Data de Término:** {os_detalhes['dt_termino'].strftime('%d/%m/%Y %H:%M') if pd.notna(os_detalhes['dt_termino']) else 'N/A'}")
-                
-                if 'nm_responsavel' in os_detalhes and pd.notna(os_detalhes['nm_responsavel']):
-                    st.write(f"**Responsável:** {os_detalhes['nm_responsavel']}")
-                else: st.write("**Responsável:** N/A")
-                
-                st.write(f"**Última Atualização:** {os_detalhes['dt_ultima_atualizacao'].strftime('%d/%m/%Y %H:%M') if pd.notna(os_detalhes['dt_ultima_atualizacao']) else 'N/A'}")
-            
-            # Descrição completa do serviço, se disponível
-            if 'ds_completa_servico' in os_detalhes and pd.notna(os_detalhes['ds_completa_servico']):
-                st.subheader("Descrição Completa da Ordem de Serviço")
-                st.write(os_detalhes['ds_completa_servico'])
-            else:
-                st.subheader("Descrição Completa da Ordem de Serviço")
-                st.info("Sem descrição detalhada disponível para esta OS.")
-            
-            # Calcular e exibir métricas de tempo para a OS específica
-            st.subheader("Métricas de Tempo da OS")
-            
-            # Tempo de espera para início
-            if pd.notna(os_detalhes['dt_criacao']) and pd.notna(os_detalhes['dt_inicio']):
-                tempo_espera = (os_detalhes['dt_inicio'] - os_detalhes['dt_criacao']).total_seconds() / (24*60*60)
-                st.write(f"**Tempo de espera para início:** {tempo_espera:.2f} dias")
-            else:
-                st.write("**Tempo de espera para início:** N/A (OS não iniciada ou sem data de criação/início)")
-            
-            # Tempo total de atendimento
-            if pd.notna(os_detalhes['dt_criacao']) and pd.notna(os_detalhes['dt_termino']):
-                tempo_total = (os_detalhes['dt_termino'] - os_detalhes['dt_criacao']).total_seconds() / (24*60*60)
-                st.write(f"**Tempo total de atendimento:** {tempo_total:.2f} dias")
-            else:
-                st.write("**Tempo total de atendimento:** N/A (OS não concluída ou sem data de criação/término)")
-    else:
-        st.info("Nenhuma Ordem de Serviço disponível para seleção ou a coluna 'nr_os' não foi encontrada.")
+        time.sleep(30) # Espera 30 segundos antes de re-executar todo o loop
 
 # Ponto de entrada da aplicação Streamlit
 if __name__ == "__main__":
