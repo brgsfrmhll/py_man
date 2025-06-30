@@ -35,7 +35,7 @@ except Exception as e:
 
 # Função para conectar ao banco de dados Oracle
 # Usando st.cache com allow_output_mutation=True para compatibilidade com versões antigas do Streamlit
-@st.cache(allow_output_mutation=True, suppress_st_warning=True) # <-- CORREÇÃO AQUI
+@st.cache(allow_output_mutation=True, suppress_st_warning=True)
 def conectar_ao_banco():
     """Estabelece uma conexão direta com o banco de dados Oracle usando oracledb."""
     try:
@@ -55,8 +55,8 @@ def conectar_ao_banco():
             return None
 
 # Função para obter dados das ordens de serviço
-# Usando st.cache para compatibilidade com versões antigas do Streamlit
-@st.cache(allow_output_mutation=True, suppress_st_warning=True) # <-- CORREÇÃO AQUI
+# Adicionamos hash_funcs para lidar com o objeto oracledb.Connection
+@st.cache(allow_output_mutation=True, suppress_st_warning=True, hash_funcs={oracledb.Connection: lambda _: None}) # <-- CORREÇÃO AQUI
 def obter_ordens_servico(conn):
     """Obtém os dados das ordens de serviço do grupo de trabalho 12."""
     if conn is None:
@@ -165,9 +165,7 @@ def main():
     # Ajuste: Garantir que data_fim_input não seja menor que data_inicio_input
     if data_inicio_input > data_fim_input:
         st.sidebar.error("A Data Inicial não pode ser maior que a Data Final.")
-        # Por simplicidade, vamos apenas avisar e deixar que o Streamlit lide com a interface.
-        # O DataFrame filtrado ficará vazio até que o usuário corrija.
-        df_filtrado = pd.DataFrame()
+        df_filtrado = pd.DataFrame() # Esvazia o DataFrame para indicar erro ou dados inconsistentes
     else:
         # Aplica o filtro de data antes dos outros filtros para performance
         df_filtrado = df_os[(df_os['dt_criacao'].dt.date >= data_inicio_input) & 
