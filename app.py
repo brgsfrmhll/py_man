@@ -55,8 +55,8 @@ def conectar_ao_banco():
             return None
 
 # Função para obter dados das ordens de serviço
-# Adicionamos hash_funcs para lidar com o objeto oracledb.Connection
-@st.cache(allow_output_mutation=True, suppress_st_warning=True, hash_funcs={oracledb.Connection: lambda _: None}) # <-- CORREÇÃO AQUI
+# Adicionamos hash_funcs para lidar com o objeto oracledb.Connection que não é hashable
+@st.cache(allow_output_mutation=True, suppress_st_warning=True, hash_funcs={oracledb.Connection: lambda _: None})
 def obter_ordens_servico(conn):
     """Obtém os dados das ordens de serviço do grupo de trabalho 12."""
     if conn is None:
@@ -346,16 +346,19 @@ def main():
     # --- NOVA ABA: OS sem Responsável e Carga de Trabalho ---
     elif tab_selecionada == "OS sem Responsável e Carga de Trabalho":
         st.subheader("Ordens de Serviço em Aberto sem Responsável Designado")
-        st.write("Esta seção lista as Ordens de Serviço que estão atualmente 'Em aberto' e para as quais nenhum responsável foi atribuído. Elas são ordenadas da mais antiga para a mais recente, ajudando a identificar itens que podem estar parados.")
+        st.write(
+            "Esta seção lista as Ordens de Serviço que estão atualmente 'Em aberto' e para as quais nenhum responsável foi atribuído. "
+            "Elas são ordenadas da mais antiga para a mais recente, ajudando a identificar itens que podem estar parados."
+        )
         
         # 1. Lista de OS em Aberto sem Responsável (Ordenada da mais antiga para a mais nova)
         os_sem_responsavel = df_filtrado[
-            (df_filtrado['status'] == 'Em aberto') & 
-            (df_filtrado['nm_responsavel'].isna()) # Verifica se o responsável é NaN (nulo)
+            (df_filtrado["status"] == "Em aberto") & 
+            (df_filtrado["nm_responsavel"].isna()) # Verifica se o responsável é NaN (nulo)
         ].copy() 
 
         # Ordena pela data de criação, da mais antiga para a mais nova
-        os_sem_responsavel = os_sem_responsavel.sort_values(by='dt_criacao', ascending=True)
+        os_sem_responsavel = os_sem_responsavel.sort_values(by="dt_criacao", ascending=True)
 
         if not os_sem_responsavel.empty:
             st.success(f"Foram encontradas **{len(os_sem_responsavel)}** Ordens de Serviço em aberto sem responsável designada.")
@@ -368,42 +371,60 @@ def main():
                 'dt_criacao': 'Data Criação', 
                 'ie_prioridade': 'Prioridade', 
                 'status': 'Status'
-            }), use_container_width=True)
+            })) # use_container_width removido para compatibilidade
         else:
             st.info("🎉 Nenhuma Ordem de Serviço em aberto sem responsável designada no período selecionado! Isso é um ótimo sinal de organização!")
             
         st.markdown("---") # Separador visual para a próxima seção
         
-        st.subheader("Carga de Trabalho de Ordens de Serviço em Aberto por Responsável")
-        st.write("Aqui você pode visualizar a distribuição das Ordens de Serviço que estão 'Em aberto' e já atribuídas a um responsável. Cada card mostra a contagem de OS em aberto para cada técnico, auxiliando na gestão da carga de trabalho.")
+        # 2. Carga de Trabalho por Responsável
+        st.subheader("Carga de Trabalho de Ordens de Serviço por Responsável")
+        st.write("Aqui você pode visualizar a quantidade de Ordens de Serviço designadas a cada técnico, separadas entre as que já foram iniciadas ('em andamento') "
+                 "e as que ainda aguardam execução ('designadas, não iniciadas'). Esse painel auxilia na gestão da carga de trabalho.")
 
-        # 2. Cartões para cada Usuário Técnico com a Quantidade de Chamados em Aberto
-        # Filtra as OS que estão 'Em aberto' e que possuem um responsável (não-nulo)
-        os_com_responsavel_em_aberto = df_filtrado[
-            (df_filtrado['status'] == 'Em aberto') & 
-            (df_filtrado['nm_responsavel'].notna()) # Verifica se o responsável NÃO é NaN
-        ].copy()
+        # Filtra as OS com um responsável (não nulo)
+        os_com_responsavel = df_filtrado[df_filtrado["nm_responsavel"].notna()].copy()
         
-        if not os_com_responsavel_em_aberto.empty:
-            # Conta a quantidade de OS em aberto por responsável
-            open_os_per_responsible = os_com_responsavel_em_aberto['nm_responsavel'].value_counts().reset_index()
-            open_os_per_responsible.columns = ['Responsável', 'Quantidade']
-            
-            # Define o número de colunas para os cards (máximo de 3 para melhor visualização)
-            num_responsibles = len(open_os_per_responsible)
-            num_cols = min(3, num_responsibles if num_responsibles > 0 else 1)
-            
-            # Cria as colunas no Streamlit
-            cols = st.columns(num_cols) 
-            col_idx = 0
-            
-            # Itera sobre cada responsável para criar um card
-            for index, row in open_os_per_responsible.iterrows():
-                with cols[col_idx % num_cols]: # Distribui os cards entre as colunas
-                    st.info(f"**{row['Responsável']}**\n\nOS em Aberto: **{int(row['Quantidade'])}**")
-                col_idx += 1
+        if not os_com_responsavel.empty:
+            # 2.1 Contagem de OS em andamento (dt_inicio não nulo)
+            os_em_andamento_real = os_com_responsavel[os_com_responsavel["dt_inicio"].notna()]
+            andamento_por_responsavel = (
+                os_em_andamento_real["nm_responsavel"].value_counts().reset_index()
+            )
+            andamento_por_responsavel.columns = ["Responsável", "Em Andamento"]
+
+            # 2.2 Contagem de OS em aberto designadas (dt_inicio nulo)
+            os_em_aberto_designadas = os_com_responsavel[os_com_responsavel["dt_inicio"].isna()]
+            aberto_por_responsavel = (
+                os_em_aberto_designadas["nm_responsavel"].value_counts().reset_index()
+            )
+            aberto_por_responsavel.columns = ["Responsável", "Designadas (não iniciadas)"]
+
+            # Junta as informações em um único DataFrame
+            carga_por_responsavel = pd.merge(
+                andamento_por_responsavel,
+                aberto_por_responsavel,
+                on="Responsável",
+                how="outer",
+            ).fillna(0)
+            carga_por_responsavel["Em Andamento"] = carga_por_responsavel["Em Andamento"].astype(int)
+            carga_por_responsavel["Designadas (não iniciadas)"] = carga_por_responsavel["Designadas (não iniciadas)"].astype(int)
+
+            # Exibir os técnicos com cartões
+            num_responsaveis = len(carga_por_responsavel)
+            # Garante pelo menos 1 coluna para evitar erro se não houver responsáveis
+            num_colunas = min(3, num_responsaveis if num_responsaveis > 0 else 1) 
+            colunas = st.columns(num_colunas)
+
+            for idx, row in carga_por_responsavel.iterrows():
+                with colunas[idx % num_colunas]: # Distribui os cartões entre as colunas
+                    st.info(
+                        f"**{row['Responsável']}**\n\n"
+                        f"OS em Andamento: **{row['Em Andamento']}**\n"
+                        f"OS Designadas (não iniciadas): **{row['Designadas (não iniciadas)']}**"
+                    )
         else:
-            st.info("Nenhuma Ordem de Serviço em aberto designada a um responsável no período selecionado.")
+            st.info("Nenhuma Ordem de Serviço no período selecionado foi atribuída a um responsável.")
     # --- FIM DA NOVA ABA ---
     
     st.markdown("---") # Separador visual
@@ -481,7 +502,7 @@ def main():
             df_exibir[col] = df_exibir[col].dt.strftime('%d/%m/%Y %H:%M').fillna('N/A')
     
     # Exibir tabela interativa
-    st.dataframe(df_exibir, use_container_width=True)
+    st.dataframe(df_exibir) # use_container_width removido para compatibilidade
     
     st.markdown("---") # Separador visual
 
