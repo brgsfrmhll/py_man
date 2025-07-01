@@ -9,7 +9,7 @@ import time
 # Layout "wide" para ocupar a largura total e "collapsed" para esconder a sidebar, ideal para TV
 st.set_page_config(
     page_title="Painel de Acompanhamento de OS - TV",
-    page_icon="📺",
+    page_icon="��",
     layout="wide", 
     initial_sidebar_state="collapsed" 
 )
@@ -60,7 +60,6 @@ def obter_ordens_servico(username, password, host, port, service, refresh_key):
                 dt_inicio_real as dt_inicio, 
                 dt_fim_real as dt_termino, 
                 nm_usuario as nm_responsavel, 
-                dt_atualizacao as dt_ultima_atualizacao, 
                 ds_dano as ds_completa_servico
         from    MAN_ORDEM_SERVICO 
         where   NR_GRUPO_TRABALHO = 12
@@ -86,7 +85,7 @@ def processar_dados(df):
 
     df.columns = [col.lower() for col in df.columns]
     
-    colunas_data = ['dt_criacao', 'dt_inicio', 'dt_termino', 'dt_ultima_atualizacao']
+    colunas_data = ['dt_criacao', 'dt_inicio', 'dt_termino']
     for col in colunas_data:
         if col in df.columns:
             df[col] = pd.to_datetime(df[col], errors='coerce')
@@ -96,19 +95,67 @@ def processar_dados(df):
     df.loc[df['dt_inicio'].isna() & df['dt_termino'].isna(), 'status'] = 'Em aberto' # Aguardando Início
     df.loc[df['dt_inicio'].notna() & df['dt_termino'].isna(), 'status'] = 'Em andamento' # Ativa
     
-    # Calcula o tempo que a OS está 'Em aberto' (aguardando início)
-    df['tempo_em_aberto'] = np.nan
+    # Calcula o tempo que a OS está 'Em aberto' (aguardando início) em dias (float)
+    df['tempo_em_aberto_dias'] = np.nan
     mask_em_aberto_ou_iniciando = df['dt_inicio'].isna() & df['dt_criacao'].notna()
     # Calcula a diferença do momento atual para as OS ainda não iniciadas
-    df.loc[mask_em_aberto_ou_iniciando, 'tempo_em_aberto'] = \
+    df.loc[mask_em_aberto_ou_iniciando, 'tempo_em_aberto_dias'] = \
         (datetime.now() - df.loc[mask_em_aberto_ou_iniciando, 'dt_criacao']).dt.total_seconds() / (24*60*60)
 
-    # Formata 'tempo_em_aberto' como string para exibição na tabela
-    df['tempo_em_aberto_str'] = df['tempo_em_aberto'].apply(
-        lambda x: f"{x:.2f} dias" if pd.notna(x) else "N/A"
-    )
+    # Não vamos criar 'tempo_em_aberto_str' aqui, faremos a formatação direto no HTML
     
     return df
+
+# --- Função para gerar a tabela de OS Abertas com HTML customizado ---
+def generate_styled_open_os_table(df_open_os):
+    if df_open_os.empty:
+        return ""
+
+    html_string = """
+    <table class="custom-open-os-table">
+        <thead>
+            <tr>
+                <th>Nº OS</th>
+                <th>Solicitação</th>
+                <th>Solicitante</th>
+                <th>Prioridade</th>
+                <th>Criada Em</th>
+                <th>Responsável Designado</th>
+                <th>Tempo Aguardando</th>
+            </tr>
+        </thead>
+        <tbody>
+    """
+
+    for index, row in df_open_os.iterrows():
+        # Determine a classe da linha baseada no tempo aguardando
+        row_class = ""
+        if pd.notna(row['tempo_em_aberto_dias']):
+            if row['tempo_em_aberto_dias'] >= 5: # Mais de 5 dias
+                row_class = "danger-row"
+            elif row['tempo_em_aberto_dias'] >= 2: # Entre 2 e 5 dias
+                row_class = "warning-row"
+            elif row['tempo_em_aberto_dias'] >= 0.5: # Entre 0.5 e 2 dias
+                row_class = "info-row"
+            else: # Menos de 0.5 dias (12 horas)
+                row_class = "success-row"
+        
+        tempo_aguardando_display = f"{row['tempo_em_aberto_dias']:.2f} dias" if pd.notna(row['tempo_em_aberto_dias']) else "N/A"
+        criada_em_display = row['dt_criacao'].strftime('%d/%m/%Y %H:%M') if pd.notna(row['dt_criacao']) else "N/A"
+        
+        html_string += f"""
+            <tr class="{row_class}">
+                <td>{row['nr_os']}</td>
+                <td>{row['ds_solicitacao']}</td>
+                <td>{row['nm_solicitante']}</td>
+                <td>{row['ie_prioridade']}</td>
+                <td>{criada_em_display}</td>
+                <td>{row['nm_responsavel'] if pd.notna(row['nm_responsavel']) else 'Não Atribuído'}</td>
+                <td>{tempo_aguardando_display}</td>
+            </tr>
+        """
+    html_string += "</tbody></table>"
+    return html_string
 
 # --- Função Principal do Aplicativo Streamlit ---
 def main():
@@ -196,7 +243,7 @@ def main():
             font-size: 1.5em; /* Aumenta o tamanho do número */
         }
         
-        /* Estilizando o dataframe (tabela de chamados) */
+        /* Estilizando o dataframe genérico (se usado em outras seções) */
         .stDataFrame {
             border: 1px solid #2a2e3a;
             border-radius: 12px;
@@ -208,27 +255,79 @@ def main():
             border-collapse: collapse;
         }
         .stDataFrame th {
-            background-color: #2a2e3a; /* Fundo do cabeçalho */
-            color: #00CC96; /* Texto do cabeçalho */
+            background-color: #2a2e3a; 
+            color: #00CC96; 
             padding: 15px 20px;
             text-align: left;
-            border-bottom: 3px solid #00CC96; /* Borda inferior mais grossa */
+            border-bottom: 3px solid #00CC96; 
             font-size: 1.1em;
             font-weight: 700;
         }
         .stDataFrame td {
-            background-color: #0E1117; /* Fundo das células de dados */
-            color: #FAFAFA; /* Texto das células de dados */
+            background-color: #0E1117; 
+            color: #FAFAFA; 
             padding: 12px 20px;
             border-bottom: 1px solid #2a2e3a;
             font-size: 0.95em;
         }
         .stDataFrame tr:hover td {
-            background-color: #1a1e26; /* Fundo ao passar o mouse */
+            background-color: #1a1e26; 
         }
+
+        /* --- Estilos para a nova Tabela de OS Abertas (HTML customizado) --- */
+        .custom-open-os-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            font-size: 0.95em;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.5);
+        }
+        .custom-open-os-table thead th {
+            background-color: #2a2e3a;
+            color: #00CC96;
+            padding: 15px 20px;
+            text-align: left;
+            border-bottom: 3px solid #00CC96;
+            font-weight: 700;
+            font-size: 1.1em;
+        }
+        .custom-open-os-table tbody tr {
+            transition: background-color 0.2s ease;
+        }
+        .custom-open-os-table tbody tr:hover {
+            background-color: #1a1e26;
+        }
+        .custom-open-os-table tbody td {
+            background-color: #0E1117;
+            color: #FAFAFA;
+            padding: 12px 20px;
+            border-bottom: 1px solid #2a2e3a;
+            vertical-align: middle;
+        }
+
+        /* Cores condicionais para as linhas da tabela de OS Abertas */
+        .custom-open-os-table .success-row { /* Menos de 0.5 dias (Verde claro) */
+            background-color: #00CC9615 !important; /* 15% de opacidade */
+            border-left: 5px solid #00CC96;
+        }
+        .custom-open-os-table .info-row {    /* Entre 0.5 e 2 dias (Azul claro) */
+            background-color: #1E90FF15 !important; 
+            border-left: 5px solid #1E90FF;
+        }
+        .custom-open-os-table .warning-row { /* Entre 2 e 5 dias (Amarelo/Laranja) */
+            background-color: #FFA15A15 !important; 
+            border-left: 5px solid #FFA15A;
+        }
+        .custom-open-os-table .danger-row {  /* Mais de 5 dias (Vermelho) */
+            background-color: #EF553B15 !important; 
+            border-left: 5px solid #EF553B;
+        }
+
         /* Estilos para mensagens st.success e st.info */
         [data-testid="stSuccess"] {
-            background-color: #00CC9620 !important; /* Verde claro com transparência */
+            background-color: #00CC9620 !important; 
             border-left: 8px solid #00CC96 !important;
             color: #00CC96 !important;
             font-weight: 600;
@@ -237,7 +336,7 @@ def main():
             box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
         }
         [data-testid="stInfo"] {
-            background-color: #FFA15A20 !important; /* Laranja com transparência */
+            background-color: #FFA15A20 !important; 
             border-left: 8px solid #FFA15A !important;
             color: #FFA15A !important;
             font-weight: 600;
@@ -271,7 +370,6 @@ def main():
     # O loop infinito para auto-atualização do dashboard
     while True: 
         # Usamos st.empty() para "limpar" o conteúdo anterior e redesenhá-lo completamente
-        # Isso evita que o Streamlit adicione conteúdo novo a cada iteração sem limpar o anterior
         placeholder_content = st.empty()
         with placeholder_content.container():
             # --- Título Principal do Painel ---
@@ -284,8 +382,6 @@ def main():
 
             # --- Obtenção e Processamento de Dados ---
             with st.spinner("Carregando e processando dados do banco de dados..."):
-                # A chave de atualização (time.time() // 30) força o Streamlit a re-executar
-                # a função `obter_ordens_servico` a cada 30 segundos, ignorando o cache
                 df_raw = obter_ordens_servico(USERNAME, PASSWORD, HOST, PORT, SERVICE, time.time() // 30) 
                 
             if df_raw.empty:
@@ -303,7 +399,6 @@ def main():
             total_os_concluidas = len(df_processed[df_processed['status'] == 'Concluída'])
             total_geral_os = len(df_processed)
 
-            # Usando st.columns para distribuir as métricas
             col_met1, col_met2, col_met3, col_met4 = st.columns(4)
             with col_met1:
                 st.metric(label="Total de OS", value=total_geral_os)
@@ -328,24 +423,9 @@ def main():
             if not os_aguardando_inicio.empty:
                 st.success(f"**{len(os_aguardando_inicio)}** Ordens de Serviço atualmente aguardando início. Atenção às mais antigas!")
                 
-                # Selecionar e renomear colunas para exibição na tabela
-                df_display_aberto = os_aguardando_inicio[[
-                    'nr_os', 'ds_solicitacao', 'nm_solicitante', 'ie_prioridade', 'dt_criacao', 'nm_responsavel', 'tempo_em_aberto_str'
-                ]].rename(columns={
-                    'nr_os': 'Nº OS', 
-                    'ds_solicitacao': 'Solicitação', 
-                    'nm_solicitante': 'Solicitante',
-                    'ie_prioridade': 'Prioridade', 
-                    'dt_criacao': 'Criada Em',
-                    'nm_responsavel': 'Responsável Designado',
-                    'tempo_em_aberto_str': 'Tempo Aguardando' 
-                })
-                
-                # Formatar a coluna 'Criada Em' para exibir apenas data e hora
-                df_display_aberto['Criada Em'] = df_display_aberto['Criada Em'].dt.strftime('%d/%m/%Y %H:%M')
-                
-                # AQUI ESTÁ A CORREÇÃO FINAL: O nome da variável está correto agora
-                st.dataframe(df_display_aberto) 
+                # Gera a tabela HTML customizada com a nova função
+                styled_table_html = generate_styled_open_os_table(os_aguardando_inicio)
+                st.markdown(styled_table_html, unsafe_allow_html=True) 
             else:
                 st.info("🎉 Parabéns! Nenhuma Ordem de Serviço aguardando início no momento. Produtividade máxima!")
             
@@ -364,14 +444,11 @@ def main():
                 carga_por_responsavel.columns = ["Responsável", "OS Ativas"]
                 
                 num_responsaveis = len(carga_por_responsavel)
-                # Maximo de 4 colunas para manter os cards visíveis em telas grandes
                 num_cols_for_cards = min(4, num_responsaveis) 
-                # Cria as colunas para os cards. Se não houver responsáveis, ainda cria 1 coluna vazia.
                 cols_for_cards = st.columns(num_cols_for_cards if num_cols_for_cards > 0 else 1) 
 
                 for idx, row in carga_por_responsavel.iterrows():
                     with cols_for_cards[idx % num_cols_for_cards]: 
-                        # O st.info é estilizado via CSS para parecer um card bonito
                         st.info( 
                             f"**{row['Responsável']}**\n\n"
                             f"**{int(row['OS Ativas'])}** OS Ativas"
