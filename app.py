@@ -500,7 +500,7 @@ def main():
         # Pausa o script por 30 segundos
         time.sleep(30) 
         # Força a reinicialização do script, o que efetivamente "atualiza" a página
-        st.rerun() 
+        st.experimental_rerun() 
 
 # Ponto de entrada da aplicação Streamlit
 if __name__ == "__main__":
