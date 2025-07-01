@@ -435,10 +435,10 @@ def main():
                 # Gera a tabela HTML customizada com a nova função
                 styled_table_html = generate_styled_open_os_table(os_aguardando_inicio)
                 
-                # --- Adição para Depuração: Mostrar a string HTML gerada ---
-                st.info("Verificando a string HTML gerada para a tabela...")
-                st.markdown(f"HTML da Tabela Gerado (primeiros 500 caracteres):\n```html\n{styled_table_html[:500]}\n```", unsafe_allow_html=True)
-                st.markdown("---")
+                # --- LINHA REMOVIDA: Era a linha que exibia o HTML como texto ---
+                # st.info("Verificando a string HTML gerada para a tabela...")
+                # st.markdown(f"HTML da Tabela Gerado (primeiros 500 caracteres):\n```html\n{styled_table_html[:500]}\n```", unsafe_allow_html=True)
+                # st.markdown("---")
 
                 # Renderiza a tabela HTML
                 st.markdown(styled_table_html, unsafe_allow_html=True) 
