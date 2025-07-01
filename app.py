@@ -169,108 +169,92 @@ def main():
 
         /* Estilo para títulos h1, h2 */
         .main-panel-title h1 { /* Título principal */
-            font-size: 2.5em; /* <--- Ajuste aqui: Título principal ainda menor */
-            letter-spacing: 1px; /* Ajuste para não ficar muito espaçado */
+            font-size: 2em; /* <--- Ajuste aqui: Título principal ainda menor */
+            letter-spacing: 1px;
             color: #00CC96;
             font-weight: 800;
-            text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.4); /* Sombra mais suave */
-            margin-bottom: 15px; /* Margem inferior reduzida */
+            text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.4);
+            margin-bottom: 10px; /* <--- Ajuste aqui: Margem inferior reduzida */
         }
         h2 { /* Títulos de seção */
-            font-size: 1.5em; /* <--- Ajuste aqui: Títulos de seção ainda menores */
+            font-size: 1.3em; /* <--- Ajuste aqui: Títulos de seção ainda menores */
             color: #00CC96;
             font-weight: 800;
-            text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.4); /* Sombra mais suave */
-            margin-bottom: 15px; /* Margem inferior reduzida */
+            text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.4);
+            margin-bottom: 10px; /* <--- Ajuste aqui: Margem inferior reduzida */
         }
 
         /* Estilizando os cards de métricas (st.metric) */
         [data-testid="stMetric"] {
             background-color: #1a1e26;
-            padding: 8px; /* <--- Ajuste aqui: Padding ainda mais reduzido */
-            border-radius: 10px; /* Levemente menos arredondado */
-            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.4); /* Sombra mais suave */
+            padding: 5px; /* <--- Ajuste aqui: Padding ainda mais reduzido */
+            border-radius: 8px; /* Levemente menos arredondado */
+            box-shadow: 0 3px 8px rgba(0, 0, 0, 0.3); /* Sombra mais suave */
             border: 1px solid #2a2e3a;
             text-align: center;
-            margin-bottom: 8px; /* <--- Ajuste aqui: Margem inferior reduzida */
+            margin-bottom: 5px; /* <--- Ajuste aqui: Margem inferior reduzida */
             transition: transform 0.2s ease-in-out;
         }
         [data-testid="stMetric"]:hover {
-            transform: translateY(-3px); /* Efeito hover mais sutil */
+            transform: translateY(-2px); /* Efeito hover mais sutil */
         }
         [data-testid="stMetricValue"] {
-            font-size: 2em !important; /* <--- Ajuste aqui: Tamanho do valor ainda mais reduzido */
+            font-size: 1.8em !important; /* <--- Ajuste aqui: Tamanho do valor ainda mais reduzido */
             color: #00CC96 !important;
             font-weight: 800;
         }
         [data-testid="stMetricLabel"] {
-            font-size: 0.9em !important; /* <--- Ajuste aqui: Tamanho do label ainda mais reduzido */
+            font-size: 0.8em !important; /* <--- Ajuste aqui: Tamanho do label ainda mais reduzido */
             color: #90929A !important;
             font-weight: 600;
             text-transform: uppercase;
         }
         [data-testid="stMetricDelta"] {
-            font-size: 0.9em !important; /* <--- Ajuste aqui */
+            font-size: 0.8em !important; /* <--- Ajuste aqui */
         }
 
-        /* Estilizando o container para os cards de responsáveis (FORÇANDO UMA LINHA) */
-        .responsavel-cards-container {
-            display: flex;
-            flex-wrap: nowrap; /* <--- CHAVE: Força todos os cards a ficarem na mesma linha */
-            gap: 10px; /* <--- Ajuste aqui: Espaçamento entre os cards */
-            justify-content: flex-start;
-            margin-bottom: 20px;
-            overflow-x: auto; /* Adiciona rolagem horizontal se não couberem */
-            padding-bottom: 5px; /* Espaço para a barra de rolagem */
-            scrollbar-width: thin; /* Firefox */
-            scrollbar-color: #00CC96 #1a1e26; /* Firefox */
-        }
-        /* Estilo da barra de rolagem para Webkit (Chrome, Safari) */
-        .responsavel-cards-container::-webkit-scrollbar {
-            height: 8px;
-        }
-        .responsavel-cards-container::-webkit-scrollbar-track {
-            background: #1a1e26;
-            border-radius: 10px;
-        }
-        .responsavel-cards-container::-webkit-scrollbar-thumb {
-            background-color: #00CC96;
-            border-radius: 10px;
-            border: 2px solid #1a1e26;
-        }
+        /* Estilizando o container para os cards de responsáveis */
+        /* REMOVIDO: flex-wrap: nowrap; E width: fixa; */
+        /* O layout será controlado pelo st.columns(9) */
 
 
         /* Estilizando os cards de carga de trabalho (st.info é usado para isso) */
         [data-testid="stAlert"] {
-            flex-shrink: 0; /* Impede que os cards encolham */
-            width: 180px; /* <--- Ajuste aqui: Largura fixa para cada card de responsável */
+            /* flex-shrink: 0; e width: fixa; NÃO SÃO MAIS NECESSÁRIOS AQUI */
+            /* st.columns já garante a largura e o não-encolhimento */
             background-color: #1a1e26 !important; 
             color: #FAFAFA !important; 
             border: 1px solid #00CC96 !important; 
-            border-left: 8px solid #00CC96 !important; /* Borda um pouco menor */
-            border-radius: 8px !important; /* Levemente menos arredondado */
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5) !important; /* Sombra mais suave */
-            padding: 10px !important; /* Reduzido */
+            border-left: 6px solid #00CC96 !important; /* <--- Ajuste: Borda um pouco menor */
+            border-radius: 6px !important; /* <--- Ajuste: Levemente menos arredondado */
+            box-shadow: 0 3px 8px rgba(0, 0, 0, 0.3) !important; /* <--- Ajuste: Sombra mais suave */
+            padding: 8px !important; /* <--- Ajuste: Reduzido */
             margin-bottom: 0px !important; /* Removido para usar gap no container */
             transition: transform 0.2s ease-in-out;
+            height: 100%; /* Garante que o card ocupe toda a altura da célula da coluna */
+            display: flex; /* Para alinhar o conteúdo verticalmente */
+            flex-direction: column;
+            justify-content: center;
         }
         [data-testid="stAlert"]:hover {
             transform: translateY(-2px); /* Efeito hover mais sutil */
         }
-        [data-testid="stAlert"] .st-bv { 
-            font-size: 1.2em; /* Reduzido */
+        [data-testid="stAlert"] .st-bv { /* Nome do Responsável */
+            font-size: 1em; /* <--- Ajuste: Reduzido */
             font-weight: 700;
             color: #00CC96;
-            margin-bottom: 5px; /* Reduzido */
+            margin-bottom: 3px; /* <--- Ajuste: Reduzido */
+            text-align: center;
         }
-        [data-testid="stAlert"] p { 
-            font-size: 1em; /* Reduzido */
-            margin: 2px 0; /* Reduzido */
+        [data-testid="stAlert"] p { /* Texto de OS Ativas */
+            font-size: 0.8em; /* <--- Ajuste: Reduzido */
+            margin: 1px 0; /* <--- Ajuste: Reduzido */
             font-weight: 600;
+            text-align: center;
         }
-        [data-testid="stAlert"] p strong { 
+        [data-testid="stAlert"] p strong { /* Número de OS Ativas */
             color: #FFA15A;
-            font-size: 1.2em; /* Reduzido */
+            font-size: 1em; /* <--- Ajuste: Reduzido */
         }
         
         /* Estilizando o dataframe (tabela de chamados) - Streamlit Nativo */
@@ -421,8 +405,10 @@ def main():
 
     # O loop infinito para auto-atualização do dashboard
     while True: 
-        # ATENÇÃO: Todo o conteúdo que deve ser atualizado/limpo a cada iteração DEVE estar dentro deste 'with'
-        # Se você notar conteúdo duplicado ou não sendo limpo, verifique se está fora deste bloco.
+        # IMPORTANTE: Todo o conteúdo que deve ser atualizado/limpo a cada iteração DEVE estar dentro deste 'with'.
+        # st.empty() cria um "container" vazio. placeholder_content.container() insere conteúdo dentro dele.
+        # Na próxima iteração do loop, o conteúdo anterior é sobrescrito, não adicionado.
+        # Se você ainda está vendo conteúdo duplicado, por favor, verifique sua instalação do Streamlit.
         placeholder_content = st.empty()
         with placeholder_content.container():
             # --- Título Principal do Painel ---
@@ -470,6 +456,7 @@ def main():
             # --- Seção de Ordens de Serviço Abertas e Aguardando Início (Cards) ---
             st.markdown("<h2>Ordens de Serviço Abertas e Aguardando Início</h2>", unsafe_allow_html=True)
             
+            # FILTRANDO OS PARA PEGAR APENAS AS "EM ABERTO" (Aguardando Início)
             os_aguardando_inicio = df_processed[
                 df_processed["status"] == "Em aberto" 
             ].copy() 
@@ -478,8 +465,6 @@ def main():
 
             if not os_aguardando_inicio.empty:
                 st.success(f"**{len(os_aguardando_inicio)}** Ordens de Serviço atualmente aguardando início. Atenção às mais antigas!")
-                # Lembrete: Esta lista JÁ EXCLUI OS que estão 'Em andamento'.
-                # A lógica de status é: 'Em aberto' = aguardando início; 'Em andamento' = já iniciada.
                 
                 # Gera e renderiza os cards HTML personalizados
                 os_cards_html = generate_open_os_cards(os_aguardando_inicio)
@@ -501,15 +486,18 @@ def main():
                 carga_por_responsavel = os_em_andamento_ativas["nm_responsavel"].value_counts().reset_index()
                 carga_por_responsavel.columns = ["Responsável", "OS Ativas"]
                 
-                # Container para os cards de responsáveis
-                st.markdown('<div class="responsavel-cards-container">', unsafe_allow_html=True)
+                # Criar 9 colunas para os cards de responsáveis
+                cols_resp = st.columns(9) 
+                
                 for idx, row in carga_por_responsavel.iterrows():
-                    # Os st.info serão os cards que ficarão lado a lado
-                    st.info( 
-                        f"**{row['Responsável']}**\n\n"
-                        f"**{int(row['OS Ativas'])}** OS Ativas"
-                    )
-                st.markdown('</div>', unsafe_allow_html=True) # Fecha o container
+                    if idx < 9: # Limita a exibição aos primeiros 9 responsáveis nas 9 colunas
+                        with cols_resp[idx]: 
+                            st.info( 
+                                f"**{row['Responsável']}**\n\n"
+                                f"**{int(row['OS Ativas'])}** OS Ativas"
+                            )
+                    else:
+                        break # Se tiver mais de 9, paramos de exibir nesta seção
             else:
                 st.info("Nenhuma Ordem de Serviço ativa atribuída a um responsável no momento. Todos prontos para mais tarefas!")
             
