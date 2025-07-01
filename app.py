@@ -9,7 +9,7 @@ import time
 # Layout "wide" para ocupar a largura total e "collapsed" para esconder a sidebar, ideal para TV
 st.set_page_config(
     page_title="Painel de Acompanhamento de OS - TV",
-    page_icon="📺",
+    page_icon="��",
     layout="wide", 
     initial_sidebar_state="collapsed" 
 )
@@ -102,64 +102,17 @@ def processar_dados(df):
     df.loc[mask_em_aberto_ou_iniciando, 'tempo_em_aberto_dias'] = \
         (datetime.now() - df.loc[mask_em_aberto_ou_iniciando, 'dt_criacao']).dt.total_seconds() / (24*60*60)
 
-    # Não vamos criar 'tempo_em_aberto_str' aqui, faremos a formatação direto no HTML
+    # Formata 'tempo_em_aberto_dias' para exibição amigável
+    df['Tempo Aguardando'] = df['tempo_em_aberto_dias'].apply(
+        lambda x: f"{x:.2f} dias" if pd.notna(x) else "N/A"
+    )
     
     return df
-
-# --- Função para gerar a tabela de OS Abertas com HTML customizado ---
-def generate_styled_open_os_table(df_open_os):
-    if df_open_os.empty:
-        return ""
-
-    html_string = """
-    <table class="custom-open-os-table">
-        <thead>
-            <tr>
-                <th>Nº OS</th>
-                <th>Solicitação</th>
-                <th>Solicitante</th>
-                <th>Prioridade</th>
-                <th>Criada Em</th>
-                <th>Responsável Designado</th>
-                <th>Tempo Aguardando</th>
-            </tr>
-        </thead>
-        <tbody>
-    """
-
-    for index, row in df_open_os.iterrows():
-        # Determine a classe da linha baseada no tempo aguardando
-        row_class = ""
-        if pd.notna(row['tempo_em_aberto_dias']):
-            if row['tempo_em_aberto_dias'] >= 5: # Mais de 5 dias
-                row_class = "danger-row"
-            elif row['tempo_em_aberto_dias'] >= 2: # Entre 2 e 5 dias
-                row_class = "warning-row"
-            elif row['tempo_em_aberto_dias'] >= 0.5: # Entre 0.5 e 2 dias
-                row_class = "info-row"
-            else: # Menos de 0.5 dias (12 horas)
-                row_class = "success-row"
-        
-        tempo_aguardando_display = f"{row['tempo_em_aberto_dias']:.2f} dias" if pd.notna(row['tempo_em_aberto_dias']) else "N/A"
-        criada_em_display = row['dt_criacao'].strftime('%d/%m/%Y %H:%M') if pd.notna(row['dt_criacao']) else "N/A"
-        
-        html_string += f"""
-            <tr class="{row_class}">
-                <td>{row['nr_os']}</td>
-                <td>{row['ds_solicitacao']}</td>
-                <td>{row['nm_solicitante']}</td>
-                <td>{row['ie_prioridade']}</td>
-                <td>{criada_em_display}</td>
-                <td>{row['nm_responsavel'] if pd.notna(row['nm_responsavel']) else 'Não Atribuído'}</td>
-                <td>{tempo_aguardando_display}</td>
-            </tr>
-        """
-    html_string += "</tbody></table>"
-    return html_string
 
 # --- Função Principal do Aplicativo Streamlit ---
 def main():
     # Injeta CSS personalizado para estilização do painel (Onde a magia acontece)
+    # Removemos o CSS específico para a tabela customizada que não estava funcionando.
     st.markdown(
         """
         <style>
@@ -243,12 +196,13 @@ def main():
             font-size: 1.5em; /* Aumenta o tamanho do número */
         }
         
-        /* Estilizando o dataframe genérico (se usado em outras seções) */
+        /* Estilizando o dataframe (tabela de chamados) - Streamlit Nativo */
         .stDataFrame {
             border: 1px solid #2a2e3a;
             border-radius: 12px;
             overflow: hidden; 
             box-shadow: 0 6px 12px rgba(0, 0, 0, 0.5);
+            /* Importante: Estas propriedades podem ser limitadas ou sobrescritas pelo Streamlit 1.10.0 */
         }
         .stDataFrame table {
             width: 100%;
@@ -272,57 +226,6 @@ def main():
         }
         .stDataFrame tr:hover td {
             background-color: #1a1e26; 
-        }
-
-        /* --- Estilos para a nova Tabela de OS Abertas (HTML customizado) --- */
-        .custom-open-os-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 20px;
-            font-size: 0.95em;
-            border-radius: 12px;
-            overflow: hidden;
-            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.5);
-        }
-        .custom-open-os-table thead th {
-            background-color: #2a2e3a;
-            color: #00CC96;
-            padding: 15px 20px;
-            text-align: left;
-            border-bottom: 3px solid #00CC96;
-            font-weight: 700;
-            font-size: 1.1em;
-        }
-        .custom-open-os-table tbody tr {
-            transition: background-color 0.2s ease;
-        }
-        .custom-open-os-table tbody tr:hover {
-            background-color: #1a1e26;
-        }
-        .custom-open-os-table tbody td {
-            background-color: #0E1117;
-            color: #FAFAFA;
-            padding: 12px 20px;
-            border-bottom: 1px solid #2a2e3a;
-            vertical-align: middle;
-        }
-
-        /* Cores condicionais para as linhas da tabela de OS Abertas */
-        .custom-open-os-table .success-row { /* Menos de 0.5 dias (Verde claro) */
-            background-color: #00CC9615 !important; /* 15% de opacidade */
-            border-left: 5px solid #00CC96;
-        }
-        .custom-open-os-table .info-row {    /* Entre 0.5 e 2 dias (Azul claro) */
-            background-color: #1E90FF15 !important; 
-            border-left: 5px solid #1E90FF;
-        }
-        .custom-open-os-table .warning-row { /* Entre 2 e 5 dias (Amarelo/Laranja) */
-            background-color: #FFA15A15 !important; 
-            border-left: 5px solid #FFA15A;
-        }
-        .custom-open-os-table .danger-row {  /* Mais de 5 dias (Vermelho) */
-            background-color: #EF553B15 !important; 
-            border-left: 5px solid #EF553B;
         }
 
         /* Estilos para mensagens st.success e st.info */
@@ -375,14 +278,8 @@ def main():
             # --- Título Principal do Painel ---
             st.markdown('<div class="main-panel-title"><h1>Painel de Acompanhamento de OS</h1></div>', unsafe_allow_html=True)
             
-            # --- Adições para Depuração ---
-            st.markdown("<h2>--- Início da Área de Depuração ---</h2>", unsafe_allow_html=True)
-            st.write(f"Streamlit Version: {st.__version__}")
-            st.markdown("<h3>Teste de HTML: Se você está vendo este texto, o HTML está sendo renderizado corretamente!</h3>", unsafe_allow_html=True)
-            st.markdown("<p style='color: yellow; font-size: 20px;'>E este texto deve ser amarelo e grande. Se ambos aparecerem formatados, `unsafe_allow_html` funciona.</p>", unsafe_allow_html=True)
-            st.markdown("<h2>--- Fim da Área de Depuração ---</h2>", unsafe_allow_html=True)
-            st.markdown("---") # Separador visual
-
+            # --- Adição de Informação de Versão do Streamlit ---
+            st.markdown(f"<p style='color: #90929A; text-align: center; font-size: 0.8em;'>Streamlit Version: {st.__version__}</p>", unsafe_allow_html=True)
 
             # --- Informação de Última Atualização ---
             current_time_str = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
@@ -432,18 +329,25 @@ def main():
             if not os_aguardando_inicio.empty:
                 st.success(f"**{len(os_aguardando_inicio)}** Ordens de Serviço atualmente aguardando início. Atenção às mais antigas!")
                 
-                # Gera a tabela HTML customizada com a nova função
-                styled_table_html = generate_styled_open_os_table(os_aguardando_inicio)
+                # Selecionar e renomear colunas para exibição na tabela st.dataframe
+                df_display_aberto = os_aguardando_inicio[[
+                    'nr_os', 'ds_solicitacao', 'nm_solicitante', 'ie_prioridade', 'dt_criacao', 'nm_responsavel', 'Tempo Aguardando'
+                ]].rename(columns={
+                    'nr_os': 'Nº OS', 
+                    'ds_solicitacao': 'Solicitação', 
+                    'nm_solicitante': 'Solicitante',
+                    'ie_prioridade': 'Prioridade', 
+                    'dt_criacao': 'Criada Em',
+                    'nm_responsavel': 'Responsável Designado',
+                })
                 
-                # --- LINHA REMOVIDA: Era a linha que exibia o HTML como texto ---
-                # st.info("Verificando a string HTML gerada para a tabela...")
-                # st.markdown(f"HTML da Tabela Gerado (primeiros 500 caracteres):\n```html\n{styled_table_html[:500]}\n```", unsafe_allow_html=True)
-                # st.markdown("---")
-
-                # Renderiza a tabela HTML
-                st.markdown(styled_table_html, unsafe_allow_html=True) 
+                # Formatar a coluna 'Criada Em' para exibir apenas data e hora
+                df_display_aberto['Criada Em'] = df_display_aberto['Criada Em'].dt.strftime('%d/%m/%Y %H:%M')
+                
+                # Renderiza a tabela usando o componente nativo do Streamlit
+                st.dataframe(df_display_aberto) 
             else:
-                st.info("🎉 Parabéns! Nenhuma Ordem de Serviço aguardando início no momento. Produtividade máxima!")
+                st.info("�� Parabéns! Nenhuma Ordem de Serviço aguardando início no momento. Produtividade máxima!")
             
             st.markdown("---") # Separador visual
 
