@@ -9,7 +9,7 @@ import time
 # Layout "wide" para ocupar a largura total e "collapsed" para esconder a sidebar, ideal para TV
 st.set_page_config(
     page_title="Painel de Acompanhamento de OS - TV",
-    page_icon="��",
+    page_icon="📺",
     layout="wide", 
     initial_sidebar_state="collapsed" 
 )
@@ -168,74 +168,91 @@ def main():
         }
 
         /* Estilo para títulos h1, h2 */
-        h1, h2 {
-            color: #00CC96; /* Verde vibrante para títulos */
-            font-weight: 800; /* Mais negrito */
-            text-shadow: 2px 2px 5px rgba(0, 0, 0, 0.4); /* Sombra para destaque */
-            margin-bottom: 25px;
+        .main-panel-title h1 { /* Título principal */
+            font-size: 3.2em; /* <--- Ajuste aqui: Título principal menor */
+            letter-spacing: 2px;
+            color: #00CC96;
+            font-weight: 800;
+            text-shadow: 2px 2px 5px rgba(0, 0, 0, 0.4);
+            margin-bottom: 20px; /* Reduzir margem inferior */
         }
-        h2 {
-            font-size: 2.2em;
+        h2 { /* Títulos de seção */
+            font-size: 1.8em; /* <--- Ajuste aqui: Títulos de seção menores */
+            color: #00CC96;
+            font-weight: 800;
+            text-shadow: 2px 2px 5px rgba(0, 0, 0, 0.4);
+            margin-bottom: 20px; /* Reduzir margem inferior */
         }
 
         /* Estilizando os cards de métricas (st.metric) */
         [data-testid="stMetric"] {
-            background-color: #1a1e26; /* Fundo ligeiramente mais claro */
-            padding: 20px;
-            border-radius: 12px; /* Cantos mais arredondados */
-            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.5); /* Sombra mais proeminente */
-            border: 1px solid #2a2e3a; /* Borda sutil */
+            background-color: #1a1e26;
+            padding: 15px; /* <--- Ajuste aqui: Padding reduzido */
+            border-radius: 12px;
+            box-shadow: 0 6px 12px rgba(0, 0, 0, 0.5);
+            border: 1px solid #2a2e3a;
             text-align: center;
-            margin-bottom: 25px;
-            transition: transform 0.2s ease-in-out; /* Efeito hover */
+            margin-bottom: 15px; /* <--- Ajuste aqui: Margem inferior reduzida */
+            transition: transform 0.2s ease-in-out;
         }
         [data-testid="stMetric"]:hover {
-            transform: translateY(-5px); /* Levanta o card no hover */
+            transform: translateY(-5px);
         }
         [data-testid="stMetricValue"] {
-            font-size: 3.5em !important; /* Tamanho do valor */
-            color: #00CC96 !important; /* Cor do valor */
+            font-size: 3em !important; /* <--- Ajuste aqui: Tamanho do valor reduzido */
+            color: #00CC96 !important;
             font-weight: 800;
         }
         [data-testid="stMetricLabel"] {
-            font-size: 1.3em !important; /* Tamanho do label */
-            color: #90929A !important; /* Cor mais suave para o label */
+            font-size: 1.1em !important; /* <--- Ajuste aqui: Tamanho do label reduzido */
+            color: #90929A !important;
             font-weight: 600;
-            text-transform: uppercase; /* Letras maiúsculas para o label */
+            text-transform: uppercase;
         }
         [data-testid="stMetricDelta"] {
-            font-size: 1.1em !important;
+            font-size: 1em !important; /* <--- Ajuste aqui */
         }
 
+        /* Estilizando o container para os cards de responsáveis */
+        .responsavel-cards-container {
+            display: flex;
+            flex-wrap: wrap; /* Permite que os cards quebrem a linha */
+            gap: 15px; /* Espaçamento entre os cards */
+            justify-content: flex-start; /* Alinha os cards ao início */
+            margin-bottom: 20px;
+        }
+        
         /* Estilizando os cards de carga de trabalho (st.info é usado para isso) */
         [data-testid="stAlert"] {
+            flex: 1 1 calc(25% - 15px); /* <--- Ajuste aqui: Permite 4 cards por linha com espaçamento */
+            min-width: 200px; /* Garante um tamanho mínimo para não ficar muito pequeno */
             background-color: #1a1e26 !important; 
             color: #FAFAFA !important; 
             border: 1px solid #00CC96 !important; 
-            border-left: 10px solid #00CC96 !important; /* Borda lateral grossa para destaque */
+            border-left: 10px solid #00CC96 !important; 
             border-radius: 10px !important;
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.6) !important; /* Sombra mais proeminente */
-            padding: 20px !important;
-            margin-bottom: 20px !important;
-            transition: transform 0.2s ease-in-out; /* Efeito hover */
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.6) !important;
+            padding: 15px !important; /* Reduzido */
+            margin-bottom: 0px !important; /* Removido para usar gap no container */
+            transition: transform 0.2s ease-in-out;
         }
         [data-testid="stAlert"]:hover {
-            transform: translateY(-3px); /* Levanta o card no hover */
+            transform: translateY(-3px);
         }
-        [data-testid="stAlert"] .st-bv { /* Título do alert (Responsável) */
-            font-size: 1.6em;
+        [data-testid="stAlert"] .st-bv { 
+            font-size: 1.4em; /* Reduzido */
             font-weight: 700;
-            color: #00CC96; /* Verde para o nome do responsável */
-            margin-bottom: 10px;
+            color: #00CC96;
+            margin-bottom: 8px; /* Reduzido */
         }
-        [data-testid="stAlert"] p { /* Parágrafos dentro do alert (Qtd OS Ativas) */
-            font-size: 1.2em;
-            margin: 5px 0;
+        [data-testid="stAlert"] p { 
+            font-size: 1.1em; /* Reduzido */
+            margin: 3px 0; /* Reduzido */
             font-weight: 600;
         }
-        [data-testid="stAlert"] p strong { /* Negrito no número de OS Ativas */
-            color: #FFA15A; /* Laranja para o número */
-            font-size: 1.5em; /* Aumenta o tamanho do número */
+        [data-testid="stAlert"] p strong { 
+            color: #FFA15A;
+            font-size: 1.4em; /* Reduzido */
         }
         
         /* Estilizando o dataframe (tabela de chamados) - Streamlit Nativo */
@@ -269,86 +286,86 @@ def main():
             background-color: #1a1e26; 
         }
 
-        /* --- Estilos para os NOVOS Cards de OS Abertas --- */
+        /* --- Estilos para os Cards de OS Abertas --- */
         .os-card {
-            background-color: #1a1e26; /* Fundo padrão para os cards */
-            border-radius: 10px;
-            margin-bottom: 10px; /* Espaço entre os cards */
-            padding: 5px 20px; /* <--- Ajuste aqui: padding vertical reduzido */
-            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.4);
+            background-color: #1a1e26;
+            border-radius: 8px;
+            margin-bottom: 6px;
+            padding: 2px 10px; 
+            box-shadow: 0 3px 8px rgba(0, 0, 0, 0.3);
             transition: transform 0.2s ease-in-out;
-            border-left: 8px solid transparent; /* Borda esquerda para cores de status */
+            border-left: 6px solid transparent;
         }
         .os-card:hover {
-            transform: translateY(-3px);
+            transform: translateY(-2px);
         }
 
         .os-card-header {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 3px; /* <--- Ajuste aqui */
+            margin-bottom: 1px;
         }
         .os-card-id {
-            font-size: 1.2em; /* Um pouco menor */
+            font-size: 1.1em;
             font-weight: 700;
-            color: #00CC96; /* Verde para o ID da OS */
+            color: #00CC96;
         }
         .os-card-priority {
-            font-size: 0.9em; /* Um pouco menor */
+            font-size: 0.8em;
             font-weight: 600;
             color: #90929A;
             background-color: #2a2e3a;
-            padding: 3px 6px; /* Ajuste aqui */
-            border-radius: 5px;
+            padding: 2px 4px;
+            border-radius: 4px;
         }
         .os-card-solicitation {
-            font-size: 1.1em; /* Um pouco menor */
+            font-size: 1em;
             font-weight: 600;
             color: #FAFAFA;
-            margin-bottom: 5px; /* <--- Ajuste aqui */
-            line-height: 1.2; /* <--- Ajuste aqui: altura da linha reduzida */
-            overflow: hidden; /* Garante que o texto não "transborde" */
-            text-overflow: ellipsis; /* Adiciona "..." se o texto for muito longo */
-            white-space: nowrap; /* Impede quebra de linha para a solicitação */
+            margin-bottom: 2px;
+            line-height: 1.1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
         .os-card-details {
             display: flex;
-            flex-wrap: wrap; /* Permite quebrar linha em telas menores */
-            gap: 10px; /* Espaço entre os detalhes */
-            font-size: 0.8em; /* Um pouco menor */
+            flex-wrap: wrap;
+            gap: 5px;
+            font-size: 0.75em;
             color: #90929A;
-            margin-bottom: 5px; /* <--- Ajuste aqui */
+            margin-bottom: 2px;
         }
         .os-card-info {
-            white-space: nowrap; /* Evita quebra de linha para cada info */
+            white-space: nowrap;
         }
         .os-card-footer {
             text-align: right;
-            font-size: 1.0em; /* Um pouco menor */
+            font-size: 0.9em;
             font-weight: 600;
-            color: #FFA15A; /* Laranja para o tempo aguardando */
+            color: #FFA15A;
         }
 
         /* Cores condicionais para os cards de OS Abertas */
-        .os-card-success { /* Menos de 0.5 dias (Verde claro) */
-            background-color: #00CC9610 !important; 
+        .os-card-success { 
+            background-color: #00CC9608 !important; 
             border-left-color: #00CC96 !important;
         }
-        .os-card-info {    /* Entre 0.5 e 2 dias (Azul claro) */
-            background-color: #1E90FF10 !important; 
+        .os-card-info {    
+            background-color: #1E90FF08 !important; 
             border-left-color: #1E90FF !important;
         }
-        .os-card-warning { /* Entre 2 e 5 dias (Amarelo/Laranja) */
-            background-color: #FFA15A10 !important; 
+        .os-card-warning { 
+            background-color: #FFA15A08 !important; 
             border-left-color: #FFA15A !important;
         }
-        .os-card-danger {  /* Mais de 5 dias (Vermelho) */
-            background-color: #EF553B10 !important; 
+        .os-card-danger {  
+            background-color: #EF553B08 !important; 
             border-left-color: #EF553B !important;
         }
-        .os-card-default { /* Caso não haja tempo aguardando ou erro */
-            background-color: #90929A10 !important;
+        .os-card-default {
+            background-color: #90929A08 !important;
             border-left-color: #90929A !important;
         }
 
@@ -372,16 +389,6 @@ def main():
             box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
         }
 
-        /* Estilo para o cabeçalho principal do painel */
-        .main-panel-title {
-            text-align: center;
-            padding: 30px 0;
-        }
-        .main-panel-title h1 {
-            font-size: 4em;
-            letter-spacing: 2px;
-        }
-        
         /* Estilo para o timestamp de atualização */
         .last-updated {
             text-align: right;
@@ -457,7 +464,7 @@ def main():
                 os_cards_html = generate_open_os_cards(os_aguardando_inicio)
                 st.markdown(os_cards_html, unsafe_allow_html=True) 
             else:
-                st.info("�� Parabéns! Nenhuma Ordem de Serviço aguardando início no momento. Produtividade máxima!")
+                st.info("🎉 Parabéns! Nenhuma Ordem de Serviço aguardando início no momento. Produtividade máxima!")
             
             st.markdown("---") # Separador visual
 
@@ -473,16 +480,14 @@ def main():
                 carga_por_responsavel = os_em_andamento_ativas["nm_responsavel"].value_counts().reset_index()
                 carga_por_responsavel.columns = ["Responsável", "OS Ativas"]
                 
-                num_responsaveis = len(carga_por_responsavel)
-                num_cols_for_cards = min(4, num_responsaveis) 
-                cols_for_cards = st.columns(num_cols_for_cards if num_cols_for_cards > 0 else 1) 
-
+                # Container para os cards de responsáveis
+                st.markdown('<div class="responsavel-cards-container">', unsafe_allow_html=True)
                 for idx, row in carga_por_responsavel.iterrows():
-                    with cols_for_cards[idx % num_cols_for_cards]: 
-                        st.info( 
-                            f"**{row['Responsável']}**\n\n"
-                            f"**{int(row['OS Ativas'])}** OS Ativas"
-                        )
+                    st.info( 
+                        f"**{row['Responsável']}**\n\n"
+                        f"**{int(row['OS Ativas'])}** OS Ativas"
+                    )
+                st.markdown('</div>', unsafe_allow_html=True) # Fecha o container
             else:
                 st.info("Nenhuma Ordem de Serviço ativa atribuída a um responsável no momento. Todos prontos para mais tarefas!")
             
