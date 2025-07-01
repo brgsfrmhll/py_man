@@ -9,7 +9,7 @@ import time
 # Layout "wide" para ocupar a largura total e "collapsed" para esconder a sidebar, ideal para TV
 st.set_page_config(
     page_title="Painel de Acompanhamento de OS - TV",
-    page_icon="📺",
+    page_icon="��",
     layout="wide", 
     initial_sidebar_state="collapsed" 
 )
@@ -273,8 +273,8 @@ def main():
         .os-card {
             background-color: #1a1e26; /* Fundo padrão para os cards */
             border-radius: 10px;
-            margin-bottom: 15px; /* Espaço entre os cards */
-            padding: 15px 20px;
+            margin-bottom: 10px; /* Espaço entre os cards */
+            padding: 5px 20px; /* <--- Ajuste aqui: padding vertical reduzido */
             box-shadow: 0 4px 10px rgba(0, 0, 0, 0.4);
             transition: transform 0.2s ease-in-out;
             border-left: 8px solid transparent; /* Borda esquerda para cores de status */
@@ -287,42 +287,45 @@ def main():
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 8px;
+            margin-bottom: 3px; /* <--- Ajuste aqui */
         }
         .os-card-id {
-            font-size: 1.3em;
+            font-size: 1.2em; /* Um pouco menor */
             font-weight: 700;
             color: #00CC96; /* Verde para o ID da OS */
         }
         .os-card-priority {
-            font-size: 1em;
+            font-size: 0.9em; /* Um pouco menor */
             font-weight: 600;
             color: #90929A;
             background-color: #2a2e3a;
-            padding: 4px 8px;
+            padding: 3px 6px; /* Ajuste aqui */
             border-radius: 5px;
         }
         .os-card-solicitation {
-            font-size: 1.2em;
+            font-size: 1.1em; /* Um pouco menor */
             font-weight: 600;
             color: #FAFAFA;
-            margin-bottom: 10px;
-            line-height: 1.3;
+            margin-bottom: 5px; /* <--- Ajuste aqui */
+            line-height: 1.2; /* <--- Ajuste aqui: altura da linha reduzida */
+            overflow: hidden; /* Garante que o texto não "transborde" */
+            text-overflow: ellipsis; /* Adiciona "..." se o texto for muito longo */
+            white-space: nowrap; /* Impede quebra de linha para a solicitação */
         }
         .os-card-details {
             display: flex;
             flex-wrap: wrap; /* Permite quebrar linha em telas menores */
-            gap: 15px; /* Espaço entre os detalhes */
-            font-size: 0.9em;
+            gap: 10px; /* Espaço entre os detalhes */
+            font-size: 0.8em; /* Um pouco menor */
             color: #90929A;
-            margin-bottom: 10px;
+            margin-bottom: 5px; /* <--- Ajuste aqui */
         }
         .os-card-info {
             white-space: nowrap; /* Evita quebra de linha para cada info */
         }
         .os-card-footer {
             text-align: right;
-            font-size: 1.1em;
+            font-size: 1.0em; /* Um pouco menor */
             font-weight: 600;
             color: #FFA15A; /* Laranja para o tempo aguardando */
         }
