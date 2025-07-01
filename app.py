@@ -344,8 +344,8 @@ def main():
                 # Formatar a coluna 'Criada Em' para exibir apenas data e hora
                 df_display_aberto['Criada Em'] = df_display_aberto['Criada Em'].dt.strftime('%d/%m/%Y %H:%M')
                 
-                # AQUI A CORREÇÃO: REMOVIDO use_container_width=True
-                st.dataframe(df_display_abberto) 
+                # AQUI ESTÁ A CORREÇÃO FINAL: O nome da variável está correto agora
+                st.dataframe(df_display_aberto) 
             else:
                 st.info("🎉 Parabéns! Nenhuma Ordem de Serviço aguardando início no momento. Produtividade máxima!")
             
