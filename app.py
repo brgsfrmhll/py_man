@@ -9,7 +9,7 @@ import time
 # Layout "wide" para ocupar a largura total e "collapsed" para esconder a sidebar, ideal para TV
 st.set_page_config(
     page_title="Painel de Acompanhamento de OS - TV",
-    page_icon="��",
+    page_icon="📺",
     layout="wide", 
     initial_sidebar_state="collapsed" 
 )
@@ -102,17 +102,59 @@ def processar_dados(df):
     df.loc[mask_em_aberto_ou_iniciando, 'tempo_em_aberto_dias'] = \
         (datetime.now() - df.loc[mask_em_aberto_ou_iniciando, 'dt_criacao']).dt.total_seconds() / (24*60*60)
 
-    # Formata 'tempo_em_aberto_dias' para exibição amigável
-    df['Tempo Aguardando'] = df['tempo_em_aberto_dias'].apply(
-        lambda x: f"{x:.2f} dias" if pd.notna(x) else "N/A"
-    )
+    # Não vamos criar 'tempo_em_aberto_str' aqui, faremos a formatação direto no HTML
     
     return df
+
+# --- Função para gerar os cards de OS Abertas com HTML customizado ---
+def generate_open_os_cards(df_open_os):
+    if df_open_os.empty:
+        return ""
+
+    html_cards = ""
+    for index, row in df_open_os.iterrows():
+        # Determine a classe do card baseada no tempo aguardando
+        card_class = "os-card " # Base class
+        if pd.notna(row['tempo_em_aberto_dias']):
+            if row['tempo_em_aberto_dias'] >= 5: # Mais de 5 dias
+                card_class += "os-card-danger"
+            elif row['tempo_em_aberto_dias'] >= 2: # Entre 2 e 5 dias
+                card_class += "os-card-warning"
+            elif row['tempo_em_aberto_dias'] >= 0.5: # Entre 0.5 e 2 dias
+                card_class += "os-card-info"
+            else: # Menos de 0.5 dias (12 horas)
+                card_class += "os-card-success"
+        else: # Se não há tempo_em_aberto_dias (e.g., data de criação nula)
+            card_class += "os-card-default" 
+
+        tempo_aguardando_display = f"**{row['tempo_em_aberto_dias']:.2f} dias**" if pd.notna(row['tempo_em_aberto_dias']) else "N/A"
+        criada_em_display = row['dt_criacao'].strftime('%d/%m/%Y %H:%M') if pd.notna(row['dt_criacao']) else "N/A"
+        
+        html_cards += f"""
+        <div class="{card_class}">
+            <div class="os-card-header">
+                <span class="os-card-id">OS #{row['nr_os']}</span>
+                <span class="os-card-priority">Prioridade: {row['ie_prioridade']}</span>
+            </div>
+            <div class="os-card-body">
+                <p class="os-card-solicitation">{row['ds_solicitacao']}</p>
+                <div class="os-card-details">
+                    <span class="os-card-info">Solicitante: {row['nm_solicitante']}</span>
+                    <span class="os-card-info">Criada em: {criada_em_display}</span>
+                    <span class="os-card-info">Responsável: {row['nm_responsavel'] if pd.notna(row['nm_responsavel']) else 'Não Atribuído'}</span>
+                </div>
+            </div>
+            <div class="os-card-footer">
+                <span>Aguardando há: {tempo_aguardando_display}</span>
+            </div>
+        </div>
+        """
+    return html_cards
+
 
 # --- Função Principal do Aplicativo Streamlit ---
 def main():
     # Injeta CSS personalizado para estilização do painel (Onde a magia acontece)
-    # Removemos o CSS específico para a tabela customizada que não estava funcionando.
     st.markdown(
         """
         <style>
@@ -202,7 +244,6 @@ def main():
             border-radius: 12px;
             overflow: hidden; 
             box-shadow: 0 6px 12px rgba(0, 0, 0, 0.5);
-            /* Importante: Estas propriedades podem ser limitadas ou sobrescritas pelo Streamlit 1.10.0 */
         }
         .stDataFrame table {
             width: 100%;
@@ -226,6 +267,86 @@ def main():
         }
         .stDataFrame tr:hover td {
             background-color: #1a1e26; 
+        }
+
+        /* --- Estilos para os NOVOS Cards de OS Abertas --- */
+        .os-card {
+            background-color: #1a1e26; /* Fundo padrão para os cards */
+            border-radius: 10px;
+            margin-bottom: 15px; /* Espaço entre os cards */
+            padding: 15px 20px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.4);
+            transition: transform 0.2s ease-in-out;
+            border-left: 8px solid transparent; /* Borda esquerda para cores de status */
+        }
+        .os-card:hover {
+            transform: translateY(-3px);
+        }
+
+        .os-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 8px;
+        }
+        .os-card-id {
+            font-size: 1.3em;
+            font-weight: 700;
+            color: #00CC96; /* Verde para o ID da OS */
+        }
+        .os-card-priority {
+            font-size: 1em;
+            font-weight: 600;
+            color: #90929A;
+            background-color: #2a2e3a;
+            padding: 4px 8px;
+            border-radius: 5px;
+        }
+        .os-card-solicitation {
+            font-size: 1.2em;
+            font-weight: 600;
+            color: #FAFAFA;
+            margin-bottom: 10px;
+            line-height: 1.3;
+        }
+        .os-card-details {
+            display: flex;
+            flex-wrap: wrap; /* Permite quebrar linha em telas menores */
+            gap: 15px; /* Espaço entre os detalhes */
+            font-size: 0.9em;
+            color: #90929A;
+            margin-bottom: 10px;
+        }
+        .os-card-info {
+            white-space: nowrap; /* Evita quebra de linha para cada info */
+        }
+        .os-card-footer {
+            text-align: right;
+            font-size: 1.1em;
+            font-weight: 600;
+            color: #FFA15A; /* Laranja para o tempo aguardando */
+        }
+
+        /* Cores condicionais para os cards de OS Abertas */
+        .os-card-success { /* Menos de 0.5 dias (Verde claro) */
+            background-color: #00CC9610 !important; 
+            border-left-color: #00CC96 !important;
+        }
+        .os-card-info {    /* Entre 0.5 e 2 dias (Azul claro) */
+            background-color: #1E90FF10 !important; 
+            border-left-color: #1E90FF !important;
+        }
+        .os-card-warning { /* Entre 2 e 5 dias (Amarelo/Laranja) */
+            background-color: #FFA15A10 !important; 
+            border-left-color: #FFA15A !important;
+        }
+        .os-card-danger {  /* Mais de 5 dias (Vermelho) */
+            background-color: #EF553B10 !important; 
+            border-left-color: #EF553B !important;
+        }
+        .os-card-default { /* Caso não haja tempo aguardando ou erro */
+            background-color: #90929A10 !important;
+            border-left-color: #90929A !important;
         }
 
         /* Estilos para mensagens st.success e st.info */
@@ -317,7 +438,7 @@ def main():
 
             st.markdown("---") # Separador visual
 
-            # --- Seção de Ordens de Serviço Abertas e Aguardando Início ---
+            # --- Seção de Ordens de Serviço Abertas e Aguardando Início (Cards) ---
             st.markdown("<h2>Ordens de Serviço Abertas e Aguardando Início</h2>", unsafe_allow_html=True)
             
             os_aguardando_inicio = df_processed[
@@ -329,23 +450,9 @@ def main():
             if not os_aguardando_inicio.empty:
                 st.success(f"**{len(os_aguardando_inicio)}** Ordens de Serviço atualmente aguardando início. Atenção às mais antigas!")
                 
-                # Selecionar e renomear colunas para exibição na tabela st.dataframe
-                df_display_aberto = os_aguardando_inicio[[
-                    'nr_os', 'ds_solicitacao', 'nm_solicitante', 'ie_prioridade', 'dt_criacao', 'nm_responsavel', 'Tempo Aguardando'
-                ]].rename(columns={
-                    'nr_os': 'Nº OS', 
-                    'ds_solicitacao': 'Solicitação', 
-                    'nm_solicitante': 'Solicitante',
-                    'ie_prioridade': 'Prioridade', 
-                    'dt_criacao': 'Criada Em',
-                    'nm_responsavel': 'Responsável Designado',
-                })
-                
-                # Formatar a coluna 'Criada Em' para exibir apenas data e hora
-                df_display_aberto['Criada Em'] = df_display_aberto['Criada Em'].dt.strftime('%d/%m/%Y %H:%M')
-                
-                # Renderiza a tabela usando o componente nativo do Streamlit
-                st.dataframe(df_display_aberto) 
+                # Gera e renderiza os cards HTML personalizados
+                os_cards_html = generate_open_os_cards(os_aguardando_inicio)
+                st.markdown(os_cards_html, unsafe_allow_html=True) 
             else:
                 st.info("�� Parabéns! Nenhuma Ordem de Serviço aguardando início no momento. Produtividade máxima!")
             
