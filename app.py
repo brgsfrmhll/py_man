@@ -169,92 +169,86 @@ def main():
 
         /* Estilo para títulos h1, h2 */
         .main-panel-title h1 { /* Título principal */
-            font-size: 2em; /* <--- Ajuste aqui: Título principal ainda menor */
+            font-size: 2em;
             letter-spacing: 1px;
             color: #00CC96;
             font-weight: 800;
             text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.4);
-            margin-bottom: 10px; /* <--- Ajuste aqui: Margem inferior reduzida */
+            margin-bottom: 10px;
         }
         h2 { /* Títulos de seção */
-            font-size: 1.3em; /* <--- Ajuste aqui: Títulos de seção ainda menores */
+            font-size: 1.3em;
             color: #00CC96;
             font-weight: 800;
             text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.4);
-            margin-bottom: 10px; /* <--- Ajuste aqui: Margem inferior reduzida */
+            margin-bottom: 10px;
         }
 
         /* Estilizando os cards de métricas (st.metric) */
         [data-testid="stMetric"] {
             background-color: #1a1e26;
-            padding: 5px; /* <--- Ajuste aqui: Padding ainda mais reduzido */
-            border-radius: 8px; /* Levemente menos arredondado */
-            box-shadow: 0 3px 8px rgba(0, 0, 0, 0.3); /* Sombra mais suave */
+            padding: 5px;
+            border-radius: 8px;
+            box-shadow: 0 3px 8px rgba(0, 0, 0, 0.3);
             border: 1px solid #2a2e3a;
             text-align: center;
-            margin-bottom: 5px; /* <--- Ajuste aqui: Margem inferior reduzida */
+            margin-bottom: 5px;
             transition: transform 0.2s ease-in-out;
         }
         [data-testid="stMetric"]:hover {
-            transform: translateY(-2px); /* Efeito hover mais sutil */
+            transform: translateY(-2px);
         }
         [data-testid="stMetricValue"] {
-            font-size: 1.8em !important; /* <--- Ajuste aqui: Tamanho do valor ainda mais reduzido */
+            font-size: 1.8em !important;
             color: #00CC96 !important;
             font-weight: 800;
         }
         [data-testid="stMetricLabel"] {
-            font-size: 0.8em !important; /* <--- Ajuste aqui: Tamanho do label ainda mais reduzido */
+            font-size: 0.8em !important;
             color: #90929A !important;
             font-weight: 600;
             text-transform: uppercase;
         }
         [data-testid="stMetricDelta"] {
-            font-size: 0.8em !important; /* <--- Ajuste aqui */
+            font-size: 0.8em !important;
         }
-
-        /* Estilizando o container para os cards de responsáveis */
-        /* REMOVIDO: flex-wrap: nowrap; E width: fixa; */
-        /* O layout será controlado pelo st.columns(9) */
 
 
         /* Estilizando os cards de carga de trabalho (st.info é usado para isso) */
         [data-testid="stAlert"] {
-            /* flex-shrink: 0; e width: fixa; NÃO SÃO MAIS NECESSÁRIOS AQUI */
-            /* st.columns já garante a largura e o não-encolhimento */
             background-color: #1a1e26 !important; 
             color: #FAFAFA !important; 
             border: 1px solid #00CC96 !important; 
-            border-left: 6px solid #00CC96 !important; /* <--- Ajuste: Borda um pouco menor */
-            border-radius: 6px !important; /* <--- Ajuste: Levemente menos arredondado */
-            box-shadow: 0 3px 8px rgba(0, 0, 0, 0.3) !important; /* <--- Ajuste: Sombra mais suave */
-            padding: 8px !important; /* <--- Ajuste: Reduzido */
-            margin-bottom: 0px !important; /* Removido para usar gap no container */
+            border-left: 6px solid #00CC96 !important;
+            border-radius: 6px !important;
+            box-shadow: 0 3px 8px rgba(0, 0, 0, 0.3) !important;
+            padding: 8px !important;
+            margin-bottom: 0px !important; 
             transition: transform 0.2s ease-in-out;
-            height: 100%; /* Garante que o card ocupe toda a altura da célula da coluna */
-            display: flex; /* Para alinhar o conteúdo verticalmente */
+            height: 100%;
+            display: flex;
             flex-direction: column;
             justify-content: center;
         }
         [data-testid="stAlert"]:hover {
-            transform: translateY(-2px); /* Efeito hover mais sutil */
+            transform: translateY(-2px);
         }
-        [data-testid="stAlert"] .st-bv { /* Nome do Responsável */
-            font-size: 1em; /* <--- Ajuste: Reduzido */
+        [data-testid="stAlert"] .st-bv { 
+            font-size: 1em;
             font-weight: 700;
             color: #00CC96;
-            margin-bottom: 3px; /* <--- Ajuste: Reduzido */
+            margin-bottom: 3px;
             text-align: center;
         }
-        [data-testid="stAlert"] p { /* Texto de OS Ativas */
-            font-size: 0.8em; /* <--- Ajuste: Reduzido */
-            margin: 1px 0; /* <--- Ajuste: Reduzido */
+        [data-testid="stAlert"] p { 
+            font-size: 0.8em;
+            margin: 1px 0;
             font-weight: 600;
             text-align: center;
         }
-        [data-testid="stAlert"] p strong { /* Número de OS Ativas */
+        [data-testid="stAlert"] p strong { 
             color: #FFA15A;
-            font-size: 1em; /* <--- Ajuste: Reduzido */
+            font-size: 1em;
         }
         
         /* Estilizando o dataframe (tabela de chamados) - Streamlit Nativo */
@@ -405,10 +399,9 @@ def main():
 
     # O loop infinito para auto-atualização do dashboard
     while True: 
-        # IMPORTANTE: Todo o conteúdo que deve ser atualizado/limpo a cada iteração DEVE estar dentro deste 'with'.
-        # st.empty() cria um "container" vazio. placeholder_content.container() insere conteúdo dentro dele.
-        # Na próxima iteração do loop, o conteúdo anterior é sobrescrito, não adicionado.
-        # Se você ainda está vendo conteúdo duplicado, por favor, verifique sua instalação do Streamlit.
+        # NOTA: O uso de st.empty().container() em conjunto com st.experimental_rerun()
+        # pode parecer redundante, mas mantém a estrutura padrão do Streamlit para 
+        # renderização dentro de um ciclo de execução, enquanto o rerun força o ciclo completo.
         placeholder_content = st.empty()
         with placeholder_content.container():
             # --- Título Principal do Painel ---
@@ -429,6 +422,7 @@ def main():
             if df_raw.empty:
                 st.error("Não foi possível carregar os dados das Ordens de Serviço. Verifique a conexão com o banco de dados e as configurações.")
                 time.sleep(30) 
+                st.experimental_rerun() # Força a reinicialização em caso de erro
                 continue 
 
             df_processed = processar_dados(df_raw)
@@ -470,7 +464,7 @@ def main():
                 os_cards_html = generate_open_os_cards(os_aguardando_inicio)
                 st.markdown(os_cards_html, unsafe_allow_html=True) 
             else:
-                st.info("🎉 Parabéns! Nenhuma Ordem de Serviço aguardando início no momento. Produtividade máxima!")
+                st.info("�� Parabéns! Nenhuma Ordem de Serviço aguardando início no momento. Produtividade máxima!")
             
             st.markdown("---") # Separador visual
 
@@ -503,8 +497,10 @@ def main():
             
             st.markdown("---") # Separador visual final
 
-        # Pausa o script por 30 segundos antes da próxima re-execução completa
+        # Pausa o script por 30 segundos
         time.sleep(30) 
+        # Força a reinicialização do script, o que efetivamente "atualiza" a página
+        st.rerun() 
 
 # Ponto de entrada da aplicação Streamlit
 if __name__ == "__main__":
