@@ -9,7 +9,7 @@ import time
 # Layout "wide" para ocupar a largura total e "collapsed" para esconder a sidebar, ideal para TV
 st.set_page_config(
     page_title="Painel de Acompanhamento de OS - TV",
-    page_icon="��",
+    page_icon="📺",
     layout="wide", 
     initial_sidebar_state="collapsed" 
 )
@@ -375,6 +375,15 @@ def main():
             # --- Título Principal do Painel ---
             st.markdown('<div class="main-panel-title"><h1>Painel de Acompanhamento de OS</h1></div>', unsafe_allow_html=True)
             
+            # --- Adições para Depuração ---
+            st.markdown("<h2>--- Início da Área de Depuração ---</h2>", unsafe_allow_html=True)
+            st.write(f"Streamlit Version: {st.__version__}")
+            st.markdown("<h3>Teste de HTML: Se você está vendo este texto, o HTML está sendo renderizado corretamente!</h3>", unsafe_allow_html=True)
+            st.markdown("<p style='color: yellow; font-size: 20px;'>E este texto deve ser amarelo e grande. Se ambos aparecerem formatados, `unsafe_allow_html` funciona.</p>", unsafe_allow_html=True)
+            st.markdown("<h2>--- Fim da Área de Depuração ---</h2>", unsafe_allow_html=True)
+            st.markdown("---") # Separador visual
+
+
             # --- Informação de Última Atualização ---
             current_time_str = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
             st.markdown(f"<p class='last-updated'>Última atualização: {current_time_str}</p>", unsafe_allow_html=True)
@@ -425,6 +434,13 @@ def main():
                 
                 # Gera a tabela HTML customizada com a nova função
                 styled_table_html = generate_styled_open_os_table(os_aguardando_inicio)
+                
+                # --- Adição para Depuração: Mostrar a string HTML gerada ---
+                st.info("Verificando a string HTML gerada para a tabela...")
+                st.markdown(f"HTML da Tabela Gerado (primeiros 500 caracteres):\n```html\n{styled_table_html[:500]}\n```", unsafe_allow_html=True)
+                st.markdown("---")
+
+                # Renderiza a tabela HTML
                 st.markdown(styled_table_html, unsafe_allow_html=True) 
             else:
                 st.info("🎉 Parabéns! Nenhuma Ordem de Serviço aguardando início no momento. Produtividade máxima!")
