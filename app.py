@@ -514,7 +514,7 @@ def main():
                         with cols_resp[idx]: 
                             st.info( 
                                 f"**{row['Responsável']}**\n\n"
-                                f"**{row['OS Ativas']}** OS Ativas\n" 
+                                f"**{row['OS Ativas']}** OS Ativas\n\n" 
                                 f"**{row['OS Finalizadas (7 dias)']}** OS Concluídas (7 dias)" # NOVA LINHA
                             )
                     else:
