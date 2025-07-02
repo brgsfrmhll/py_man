@@ -27,7 +27,6 @@ try:
 except Exception as e:
     # Em um painel de TV, erros na sidebar não são ideais. Exibimos na tela principal.
     st.error(f"Erro na inicialização do Oracle Instant Client: {e}. Verifique a configuração e as variáveis de ambiente.")
-
 # --- Funções de Conexão e Obtenção de Dados ---
 def criar_conexao(username, password, host, port, service):
     """Cria e retorna uma nova conexão com o banco de dados Oracle."""
@@ -42,7 +41,7 @@ def criar_conexao(username, password, host, port, service):
         return None
 
 # decorated com st.cache para otimização, com refresh_key para forçar atualização a cada 30s
-@st.cache(allow_output_mutation=True, suppress_st_warning=True)
+@st.cache_data(ttl=30) # Usando st.cache_data que é a recomendação mais recente
 def obter_ordens_servico(username, password, host, port, service, refresh_key): 
     """Obtém os dados das ordens de serviço do grupo de trabalho 12, criando uma nova conexão."""
     conn = None 
@@ -159,6 +158,36 @@ def main():
         <style>
         @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800&display=swap');
 
+        /* Oculta o cabeçalho principal do Streamlit (onde fica o menu hambúrguer) */
+        header[data-testid="stHeader"] {
+            display: none !important;
+        }
+
+        /* Oculta o botão de menu/configurações (hambúrguer) */
+        div[data-testid="stToolbar"] {
+            display: none !important;
+        }
+
+        /* Oculta o rodapé "Made with Streamlit" */
+        footer {
+            display: none !important;
+        }
+
+        /* Oculta a sidebar, caso ela fosse visível em algum momento. */
+        section[data-testid="stSidebar"] {
+            display: none !important;
+        }
+
+        /* Garante que o conteúdo principal ocupe a largura total disponível */
+        .block-container {
+            padding-top: 0rem !important; /* Remove qualquer padding superior padrão */
+            padding-left: 0rem !important; /* Remove padding lateral esquerdo */
+            padding-right: 0rem !important; /* Remove padding lateral direito */
+            padding-bottom: 0rem !important; /* Remove padding inferior */
+            margin: 0 !important; /* Remove margens */
+            max-width: 100% !important; /* Garante que o conteúdo ocupe 100% da largura */
+        }
+        
         /* Estilo base para o corpo da aplicação */
         html, body, [data-testid="stAppViewContainer"] {
             font-family: 'Montserrat', sans-serif;
@@ -398,21 +427,18 @@ def main():
 
     # O loop infinito para auto-atualização do dashboard
     while True: 
-        # NOTA: O uso de st.empty().container() em conjunto com st.experimental_rerun()
-        # pode parecer redundante, mas mantém a estrutura padrão do Streamlit para 
-        # renderização dentro de um ciclo de execução, enquanto o rerun força o ciclo completo.
         placeholder_content = st.empty()
         with placeholder_content.container():
-            # --- Título Principal do Painel ---
-            st.markdown('<div class="main-panel-title"><h1>Painel de Acompanhamento de OS</h1></div>', unsafe_allow_html=True)
+            # --- Título Principal do Painel --- (Comentado para remover)
+            # st.markdown('<div class="main-panel-title"><h1>Painel de Acompanhamento de OS</h1></div>', unsafe_allow_html=True)
             
-            # --- Informação de Versão do Streamlit ---
-            st.markdown(f"<p style='color: #90929A; text-align: center; font-size: 0.8em;'>Streamlit Version: {st.__version__}</p>", unsafe_allow_html=True)
+            # --- Informação de Versão do Streamlit --- (Comentado para remover)
+            # st.markdown(f"<p style='color: #90929A; text-align: center; font-size: 0.8em;'>Streamlit Version: {st.__version__}</p>", unsafe_allow_html=True)
 
-            # --- Informação de Última Atualização ---
-            current_time_str = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-            st.markdown(f"<p class='last-updated'>Última atualização: {current_time_str}</p>", unsafe_allow_html=True)
-            st.markdown("---") # Separador visual
+            # --- Informação de Última Atualização --- (Comentado para remover)
+            # current_time_str = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+            # st.markdown(f"<p class='last-updated'>Última atualização: {current_time_str}</p>", unsafe_allow_html=True)
+            # st.markdown("---") # Separador visual (Comentado para remover)
 
             # --- Obtenção e Processamento de Dados ---
             with st.spinner("Carregando e processando dados do banco de dados..."):
@@ -444,7 +470,7 @@ def main():
             with col_met4:
                 st.metric(label="OS Aguardando Início", value=total_os_abertas)
 
-            st.markdown("---") # Separador visual
+            # st.markdown("---") # Separador visual (Comentado para remover)
 
             # --- Seção de Ordens de Serviço Abertas e Aguardando Início (Cards) ---
             st.markdown("<h2>Ordens de Serviço Abertas e Aguardando Início</h2>", unsafe_allow_html=True)
@@ -465,7 +491,7 @@ def main():
             else:
                 st.info("   Parabéns! Nenhuma Ordem de Serviço aguardando início no momento. Produtividade máxima!")
             
-            st.markdown("---") # Separador visual
+            # st.markdown("---") # Separador visual (Comentado para remover)
 
             # --- Seção de Carga de Trabalho por Responsável ---
             st.markdown("<h2>Carga de Trabalho de Ordens de Serviço Ativas por Responsável</h2>", unsafe_allow_html=True)
@@ -505,7 +531,6 @@ def main():
 
                 # Opcional: Ordenar para uma melhor visualização, talvez por OS Ativas
                 carga_por_responsavel = carga_por_responsavel.sort_values(by="OS Ativas", ascending=False)
-                
                 # Criar 9 colunas para os cards de responsáveis
                 cols_resp = st.columns(9) 
                 
@@ -521,8 +546,7 @@ def main():
                         break # Se tiver mais de 9, paramos de exibir nesta seção
             else:
                 st.info("Nenhuma Ordem de Serviço ativa ou concluída recentemente atribuída a um responsável no momento. Todos prontos para mais tarefas!")
-            
-            st.markdown("---") # Separador visual final
+        # st.markdown("---") # Separador visual final (Comentado para remover)
 
         # Pausa o script por 30 segundos
         time.sleep(30) 
