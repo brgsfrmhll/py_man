@@ -9,7 +9,7 @@ import time
 # Layout "wide" para ocupar a largura total e "collapsed" para esconder a sidebar, ideal para TV
 st.set_page_config(
     page_title="Painel de Acompanhamento de OS - TV",
-    page_icon="📺",
+    page_icon="��",
     layout="wide", 
     initial_sidebar_state="collapsed" 
 )
@@ -40,8 +40,8 @@ def criar_conexao(username, password, host, port, service):
         st.error(f"Erro ao tentar conectar ao banco de dados: {e}. Verifique as credenciais e a conexão com o servidor.")
         return None
 
-# decorated com st.cache para otimização, com refresh_key para forçar atualização a cada 30s
-@st.cache_data(ttl=30) # Usando st.cache_data que é a recomendação mais recente
+# Usando st.cache (compatível com versões mais antigas do Streamlit)
+@st.cache(allow_output_mutation=True, suppress_st_warning=True) 
 def obter_ordens_servico(username, password, host, port, service, refresh_key): 
     """Obtém os dados das ordens de serviço do grupo de trabalho 12, criando uma nova conexão."""
     conn = None 
