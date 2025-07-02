@@ -129,7 +129,6 @@ def generate_open_os_cards(df_open_os):
 
         tempo_aguardando_display = f"**{row['tempo_em_aberto_dias']:.2f} dias**" if pd.notna(row['tempo_em_aberto_dias']) else "N/A"
         criada_em_display = row['dt_criacao'].strftime('%d/%m/%Y %H:%M') if pd.notna(row['dt_criacao']) else "N/A"
-        
         html_cards += f"""
         <div class="{card_class}">
             <div class="os-card-header">
@@ -464,7 +463,7 @@ def main():
                 os_cards_html = generate_open_os_cards(os_aguardando_inicio)
                 st.markdown(os_cards_html, unsafe_allow_html=True) 
             else:
-                st.info("�� Parabéns! Nenhuma Ordem de Serviço aguardando início no momento. Produtividade máxima!")
+                st.info("   Parabéns! Nenhuma Ordem de Serviço aguardando início no momento. Produtividade máxima!")
             
             st.markdown("---") # Separador visual
 
@@ -475,10 +474,37 @@ def main():
                 (df_processed["status"] == "Em andamento") & 
                 (df_processed["nm_responsavel"].notna()) 
             ].copy()
+
+            # NOVO CÁLCULO: OS Finalizadas nos Últimos 7 Dias por Responsável
+            data_limite_7_dias = datetime.now() - timedelta(days=7)
+            os_finalizadas_ultimos_7_dias = df_processed[
+                (df_processed["status"] == "Concluída") & 
+                (df_processed["nm_responsavel"].notna()) &
+                (df_processed["dt_termino"] >= data_limite_7_dias)
+            ].copy()
+
+            # Agrupa e conta as OS finalizadas
+            contagem_finalizadas = os_finalizadas_ultimos_7_dias["nm_responsavel"].value_counts().reset_index()
+            contagem_finalizadas.columns = ["Responsável", "OS Finalizadas (7 dias)"]
             
-            if not os_em_andamento_ativas.empty:
+            if not os_em_andamento_ativas.empty or not contagem_finalizadas.empty: # Condição para exibir se há OS ativas OU finalizadas
                 carga_por_responsavel = os_em_andamento_ativas["nm_responsavel"].value_counts().reset_index()
                 carga_por_responsavel.columns = ["Responsável", "OS Ativas"]
+                
+                # MERGE com as OS finalizadas
+                carga_por_responsavel = pd.merge(
+                    carga_por_responsavel, 
+                    contagem_finalizadas, 
+                    on="Responsável", 
+                    how="outer" # Usamos 'outer' para incluir responsáveis que só tenham OS ativas OU só tenham finalizadas
+                ).fillna(0) # Preenche NaN com 0 para responsáveis que não tenham a outra categoria
+                
+                # Garante que as contagens sejam inteiros
+                carga_por_responsavel["OS Ativas"] = carga_por_responsavel["OS Ativas"].astype(int)
+                carga_por_responsavel["OS Finalizadas (7 dias)"] = carga_por_responsavel["OS Finalizadas (7 dias)"].astype(int)
+
+                # Opcional: Ordenar para uma melhor visualização, talvez por OS Ativas
+                carga_por_responsavel = carga_por_responsavel.sort_values(by="OS Ativas", ascending=False)
                 
                 # Criar 9 colunas para os cards de responsáveis
                 cols_resp = st.columns(9) 
@@ -488,12 +514,13 @@ def main():
                         with cols_resp[idx]: 
                             st.info( 
                                 f"**{row['Responsável']}**\n\n"
-                                f"**{int(row['OS Ativas'])}** OS Ativas"
+                                f"**{row['OS Ativas']}** OS Ativas\n" 
+                                f"**{row['OS Finalizadas (7 dias)']}** OS Concluídas (7 dias)" # NOVA LINHA
                             )
                     else:
                         break # Se tiver mais de 9, paramos de exibir nesta seção
             else:
-                st.info("Nenhuma Ordem de Serviço ativa atribuída a um responsável no momento. Todos prontos para mais tarefas!")
+                st.info("Nenhuma Ordem de Serviço ativa ou concluída recentemente atribuída a um responsável no momento. Todos prontos para mais tarefas!")
             
             st.markdown("---") # Separador visual final
 
