@@ -9,7 +9,7 @@ import time
 # Layout "wide" para ocupar a largura total e "collapsed" para esconder a sidebar, ideal para TV
 st.set_page_config(
     page_title="Painel de Acompanhamento de OS - TV",
-    page_icon="��",
+    page_icon="  ",
     layout="wide", 
     initial_sidebar_state="collapsed" 
 )
@@ -27,6 +27,7 @@ try:
 except Exception as e:
     # Em um painel de TV, erros na sidebar não são ideais. Exibimos na tela principal.
     st.error(f"Erro na inicialização do Oracle Instant Client: {e}. Verifique a configuração e as variáveis de ambiente.")
+
 # --- Funções de Conexão e Obtenção de Dados ---
 def criar_conexao(username, password, host, port, service):
     """Cria e retorna uma nova conexão com o banco de dados Oracle."""
@@ -41,8 +42,8 @@ def criar_conexao(username, password, host, port, service):
         return None
 
 # Usando st.cache (compatível com versões mais antigas do Streamlit)
-@st.cache(allow_output_mutation=True, suppress_st_warning=True) 
-def obter_ordens_servico(username, password, host, port, service, refresh_key): 
+@st.cache_data(ttl=30) # Substituí st.cache por st.cache_data (melhor prática para dados) e adicionei TTL de 30s
+def obter_ordens_servico(username, password, host, port, service): 
     """Obtém os dados das ordens de serviço do grupo de trabalho 12, criando uma nova conexão."""
     conn = None 
     try:
@@ -101,8 +102,6 @@ def processar_dados(df):
     df.loc[mask_em_aberto_ou_iniciando, 'tempo_em_aberto_dias'] = \
         (datetime.now() - df.loc[mask_em_aberto_ou_iniciando, 'dt_criacao']).dt.total_seconds() / (24*60*60)
 
-    # Não vamos criar 'tempo_em_aberto_str' aqui, faremos a formatação direto no HTML
-    
     return df
 
 # --- Função para gerar os cards de OS Abertas com HTML customizado ---
@@ -211,6 +210,14 @@ def main():
             text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.4);
             margin-bottom: 10px;
         }
+        h3 { /* Subtítulos para detalhes */
+            font-size: 1.1em;
+            color: #FFA15A;
+            font-weight: 700;
+            margin-top: 15px;
+            margin-bottom: 5px;
+        }
+
 
         /* Estilizando os cards de métricas (st.metric) */
         [data-testid="stMetric"] {
@@ -242,41 +249,69 @@ def main():
         }
 
 
-        /* Estilizando os cards de carga de trabalho (st.info é usado para isso) */
-        [data-testid="stAlert"] {
-            background-color: #1a1e26 !important; 
-            color: #FAFAFA !important; 
-            border: 1px solid #00CC96 !important; 
-            border-left: 6px solid #00CC96 !important;
-            border-radius: 6px !important;
-            box-shadow: 0 3px 8px rgba(0, 0, 0, 0.3) !important;
-            padding: 8px !important;
-            margin-bottom: 0px !important; 
+        /* Estilizando os cards de carga de trabalho (st.info é usado para isso no original) */
+        /* AGORA VAMOS ESTILIZAR NOSSOS PRÓPRIOS CARDS DE WORKLOAD CLICKÁVEIS */
+        .workload-card { /* General style for the clickable cards */
+            background-color: #1a1e26;
+            padding: 10px;
+            border-radius: 8px;
+            box-shadow: 0 3px 8px rgba(0, 0, 0, 0.3);
+            border: 1px solid #2a2e3a;
+            margin-bottom: 5px;
             transition: transform 0.2s ease-in-out;
-            height: 100%;
+            cursor: pointer; /* Indicate clickability */
+            height: 100%; /* Ensure consistent height in columns */
             display: flex;
             flex-direction: column;
             justify-content: center;
         }
-        [data-testid="stAlert"]:hover {
+        .workload-card:hover {
             transform: translateY(-2px);
         }
-        [data-testid="stAlert"] .st-bv { 
-            font-size: 1em;
+        .workload-card h4 { /* Responsible Name */
+            font-size: 1.1em;
             font-weight: 700;
             color: #00CC96;
-            margin-bottom: 3px;
+            margin-bottom: 5px;
             text-align: center;
         }
-        [data-testid="stAlert"] p { 
-            font-size: 0.8em;
-            margin: 1px 0;
+        .workload-card p { /* Metric Text */
+            font-size: 0.9em;
+            margin: 2px 0;
             font-weight: 600;
             text-align: center;
         }
-        [data-testid="stAlert"] p strong { 
-            color: #FFA15A;
+        .workload-card p strong {
             font-size: 1em;
+        }
+        /* Estilização específica para o botão que encapsula o card */
+        [data-testid^="stButton"] > button {
+            width: 100%; /* Make button take full width of its column */
+            background: none !important; /* Remove default button background */
+            border: none !important; /* Remove default button border */
+            padding: 0 !important; /* Remove default button padding */
+            margin: 0 !important; /* Remove default button margin */
+            cursor: pointer; /* Ensure pointer cursor */
+        }
+        /* Remove focus outline for a cleaner look on TV */
+        [data-testid^="stButton"] > button:focus {
+            outline: none !important;
+            box-shadow: none !important;
+        }
+
+
+        /* Cores para status de OS Concluídas (7 dias) */
+        .completed-os-red {
+            color: #EF553B; /* Red */
+            font-weight: 700;
+        }
+        .completed-os-yellow {
+            color: #FFA15A; /* Orange/Yellow */
+            font-weight: 700;
+        }
+        .completed-os-green {
+            color: #00CC96; /* Green */
+            font-weight: 700;
         }
         
         /* Estilizando o dataframe (tabela de chamados) - Streamlit Nativo */
@@ -285,6 +320,7 @@ def main():
             border-radius: 12px;
             overflow: hidden; 
             box-shadow: 0 6px 12px rgba(0, 0, 0, 0.5);
+            margin-bottom: 20px; /* Adicionado margem inferior para separar do próximo item */
         }
         .stDataFrame table {
             width: 100%;
@@ -402,6 +438,7 @@ def main():
             border-radius: 8px;
             padding: 15px;
             box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+            margin-bottom: 10px; /* Adicionado para separar */
         }
         [data-testid="stInfo"] {
             background-color: #FFA15A20 !important; 
@@ -411,6 +448,7 @@ def main():
             border-radius: 8px;
             padding: 15px;
             box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+            margin-bottom: 10px; /* Adicionado para separar */
         }
 
         /* Estilo para o timestamp de atualização */
@@ -429,26 +467,26 @@ def main():
     while True: 
         placeholder_content = st.empty()
         with placeholder_content.container():
-            # --- Título Principal do Painel --- (Comentado para remover)
-            # st.markdown('<div class="main-panel-title"><h1>Painel de Acompanhamento de OS</h1></div>', unsafe_allow_html=True)
+            # --- Título Principal do Painel ---
+            st.markdown('<div class="main-panel-title"><h1>Painel de Acompanhamento de OS</h1></div>', unsafe_allow_html=True)
             
-            # --- Informação de Versão do Streamlit --- (Comentado para remover)
-            # st.markdown(f"<p style='color: #90929A; text-align: center; font-size: 0.8em;'>Streamlit Version: {st.__version__}</p>", unsafe_allow_html=True)
-
-            # --- Informação de Última Atualização --- (Comentado para remover)
-            # current_time_str = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
-            # st.markdown(f"<p class='last-updated'>Última atualização: {current_time_str}</p>", unsafe_allow_html=True)
-            # st.markdown("---") # Separador visual (Comentado para remover)
+            # --- Informação de Última Atualização --- 
+            current_time_str_utc = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+            current_time_br = datetime.now() - timedelta(hours=3)
+            current_time_br_str = current_time_br.strftime("%d/%m/%Y %H:%M:%S")
+            st.markdown(f"<p class='last-updated'>Última atualização: {current_time_str_utc} (UTC) / {current_time_br_str} (UTC-3)</p>", unsafe_allow_html=True)
+            st.markdown("---") # Separador visual
 
             # --- Obtenção e Processamento de Dados ---
             with st.spinner("Carregando e processando dados do banco de dados..."):
-                df_raw = obter_ordens_servico(USERNAME, PASSWORD, HOST, PORT, SERVICE, time.time() // 30) 
+                # Removido 'time.time() // 30' pois st.cache_data já gerencia o TTL
+                df_raw = obter_ordens_servico(USERNAME, PASSWORD, HOST, PORT, SERVICE) 
                 
             if df_raw.empty:
                 st.error("Não foi possível carregar os dados das Ordens de Serviço. Verifique a conexão com o banco de dados e as configurações.")
                 time.sleep(30) 
                 st.experimental_rerun() # Força a reinicialização em caso de erro
-                continue 
+                continue
 
             df_processed = processar_dados(df_raw)
             
@@ -470,7 +508,7 @@ def main():
             with col_met4:
                 st.metric(label="OS Aguardando Início", value=total_os_abertas)
 
-            # st.markdown("---") # Separador visual (Comentado para remover)
+            st.markdown("---") # Separador visual
 
             # --- Seção de Ordens de Serviço Abertas e Aguardando Início (Cards) ---
             st.markdown("<h2>Ordens de Serviço Abertas e Aguardando Início</h2>", unsafe_allow_html=True)
@@ -491,7 +529,7 @@ def main():
             else:
                 st.info("   Parabéns! Nenhuma Ordem de Serviço aguardando início no momento. Produtividade máxima!")
             
-            # st.markdown("---") # Separador visual (Comentado para remover)
+            st.markdown("---") # Separador visual
 
             # --- Seção de Carga de Trabalho por Responsável ---
             st.markdown("<h2>Carga de Trabalho de Ordens de Serviço Ativas por Responsável</h2>", unsafe_allow_html=True)
@@ -531,22 +569,99 @@ def main():
 
                 # Opcional: Ordenar para uma melhor visualização, talvez por OS Ativas
                 carga_por_responsavel = carga_por_responsavel.sort_values(by="OS Ativas", ascending=False)
+
+                # --- Lógica da Coroa para o Melhor Desempenho ---
+                # Encontra o responsável com mais OS finalizadas E menor carga ativa
+                best_performer_name = None
+                if not carga_por_responsavel.empty:
+                    # Ordena primeiro por OS Finalizadas (desc) e depois por OS Ativas (asc)
+                    # Isso garante que quem fez mais e tem menos carga venha primeiro
+                    sorted_for_crown = carga_por_responsavel.sort_values(
+                        by=["OS Finalizadas (7 dias)", "OS Ativas"],
+                        ascending=[False, True]
+                    )
+                    best_performer_name = sorted_for_crown.iloc[0]["Responsável"]
+
+                # Inicializa a variável de estado da sessão para armazenar o responsável selecionado
+                if 'selected_responsible' not in st.session_state:
+                    st.session_state.selected_responsible = None
+
                 # Criar 9 colunas para os cards de responsáveis
                 cols_resp = st.columns(9) 
                 
                 for idx, row in carga_por_responsavel.iterrows():
                     if idx < 9: # Limita a exibição aos primeiros 9 responsáveis nas 9 colunas
                         with cols_resp[idx]: 
-                            st.info( 
-                                f"**{row['Responsável']}**\n\n"
-                                f"**{row['OS Ativas']}** OS Ativas\n\n" 
-                                f"**{row['OS Finalizadas (7 dias)']}** OS Concluídas (7 dias)" # NOVA LINHA
-                            )
+                            responsible_name = row['Responsável']
+                            os_ativas = row['OS Ativas']
+                            os_finalizadas = row['OS Finalizadas (7 dias)']
+
+                            # --- Lógica de Cores para OS Finalizadas ---
+                            completed_os_class = "completed-os-red" # Padrão: Vermelho (< 3)
+                            if os_finalizadas > 10:
+                                completed_os_class = "completed-os-green" # Verde (> 10)
+                            elif os_finalizadas > 3: # Amarelo (entre 3 e 10)
+                                completed_os_class = "completed-os-yellow"
+                            
+                            # Adiciona a coroa se for o melhor performer
+                            crown_emoji = ""
+                            if responsible_name == best_performer_name:
+                                crown_emoji = "👑 " # Adiciona a coroa
+
+                            # --- Criação do Card Clickável ---
+                            # Usamos st.button e estilizamos ele para parecer um card.
+                            # O HTML injetado no label do botão permite toda a customização.
+                            button_label = f"""
+                            <div class="workload-card">
+                                <h4>{crown_emoji}{responsible_name}</h4>
+                                <p><strong>{os_ativas}</strong> OS Ativas</p>
+                                <p><span class="{completed_os_class}"><strong>{os_finalizadas}</strong> OS Concluídas (7 dias)</span></p>
+                            </div>
+                            """
+                            # Ao clicar no botão, a session_state é atualizada e o script é rerunnado
+                            if st.button(button_label, key=f"select_resp_button_{responsible_name}", unsafe_allow_html=True):
+                                st.session_state.selected_responsible = responsible_name
+                                st.experimental_rerun() # Força a atualização para mostrar os detalhes
                     else:
                         break # Se tiver mais de 9, paramos de exibir nesta seção
             else:
                 st.info("Nenhuma Ordem de Serviço ativa ou concluída recentemente atribuída a um responsável no momento. Todos prontos para mais tarefas!")
-        # st.markdown("---") # Separador visual final (Comentado para remover)
+            
+            st.markdown("---") # Separador visual
+
+            # --- Seção de Detalhes do Responsável (Exibida ao Clicar) ---
+            if st.session_state.selected_responsible:
+                st.markdown(f"<h2>Detalhes para {st.session_state.selected_responsible}</h2>", unsafe_allow_html=True)
+                
+                selected_resp_df = df_processed[df_processed['nm_responsavel'] == st.session_state.selected_responsible]
+
+                # Detalhes das OS Ativas para o responsável selecionado
+                active_os_details = selected_resp_df[selected_resp_df['status'] == 'Em andamento']
+                if not active_os_details.empty:
+                    st.markdown(f"<h3>OS Ativas de {st.session_state.selected_responsible}: ({len(active_os_details)})</h3>", unsafe_allow_html=True)
+                    # Exibe apenas as colunas relevantes para OS ativas
+                    st.dataframe(active_os_details[['nr_os', 'ds_solicitacao', 'dt_criacao', 'dt_inicio', 'ie_prioridade', 'nm_solicitante', 'ds_completa_servico']])
+                else:
+                    st.info(f"Nenhuma OS ativa para {st.session_state.selected_responsible}.")
+
+                st.markdown("<br>", unsafe_allow_html=True) # Adiciona um espaço para separar
+
+                # Detalhes das OS Concluídas nos últimos 7 dias para o responsável selecionado
+                data_limite_7_dias = datetime.now() - timedelta(days=7)
+                completed_os_details = selected_resp_df[
+                    (selected_resp_df['status'] == 'Concluída') &
+                    (selected_resp_df['dt_termino'].notna()) & # Garante que dt_termino não é NaN
+                    (selected_resp_df['dt_termino'] >= data_limite_7_dias)
+                ]
+                if not completed_os_details.empty:
+                    st.markdown(f"<h3>OS Concluídas (Últimos 7 Dias) por {st.session_state.selected_responsible}: ({len(completed_os_details)})</h3>", unsafe_allow_html=True)
+                    # Exibe apenas as colunas relevantes para OS concluídas
+                    st.dataframe(completed_os_details[['nr_os', 'ds_solicitacao', 'dt_criacao', 'dt_termino', 'nm_solicitante', 'ds_completa_servico']])
+                else:
+                    st.info(f"Nenhuma OS concluída nos últimos 7 dias por {st.session_state.selected_responsible}.")
+            else:
+                st.info("Clique em um responsável acima para ver seus detalhes de carga e OS concluídas no período!")
+
 
         # Pausa o script por 30 segundos
         time.sleep(30) 
