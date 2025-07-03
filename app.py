@@ -42,7 +42,6 @@ def criar_conexao(username, password, host, port, service):
         return None
 
 # Usando st.cache (compatível com versões mais antigas do Streamlit)
-# Revertido para st.cache para compatibilidade com sua versão do Streamlit
 @st.cache(allow_output_mutation=True, suppress_st_warning=True) 
 def obter_ordens_servico(username, password, host, port, service, refresh_key): # refresh_key reintroduzido
     """Obtém os dados das ordens de serviço do grupo de trabalho 12, criando uma nova conexão."""
@@ -249,55 +248,50 @@ def main():
             font-size: 0.8em !important;
         }
 
-
-        /* Estilizando os cards de carga de trabalho (st.info é usado para isso no original) */
-        /* AGORA VAMOS ESTILIZAR NOSSOS PRÓPRIOS CARDS DE WORKLOAD CLICKÁVEIS */
-        .workload-card { /* General style for the clickable cards */
+        /* Estilo para o display visual do card (não o botão) */
+        .workload-card-display { 
             background-color: #1a1e26;
             padding: 10px;
             border-radius: 8px;
             box-shadow: 0 3px 8px rgba(0, 0, 0, 0.3);
             border: 1px solid #2a2e3a;
-            margin-bottom: 5px;
-            transition: transform 0.2s ease-in-out;
-            cursor: pointer; /* Indicate clickability */
+            margin-bottom: 5px; /* Espaço entre o card e o botão */
             height: 100%; /* Ensure consistent height in columns */
             display: flex;
             flex-direction: column;
             justify-content: center;
         }
-        .workload-card:hover {
-            transform: translateY(-2px);
-        }
-        .workload-card h4 { /* Responsible Name */
+        .workload-card-display h4 { /* Responsible Name */
             font-size: 1.1em;
             font-weight: 700;
             color: #00CC96;
             margin-bottom: 5px;
             text-align: center;
         }
-        .workload-card p { /* Metric Text */
+        .workload-card-display p { /* Metric Text */
             font-size: 0.9em;
             margin: 2px 0;
             font-weight: 600;
             text-align: center;
         }
-        .workload-card p strong {
+        .workload-card-display p strong {
             font-size: 1em;
         }
-        /* Estilização específica para o botão que encapsula o card */
-        [data-testid^="stButton"] > button {
-            width: 100%; /* Make button take full width of its column */
-            background: none !important; /* Remove default button background */
-            border: none !important; /* Remove default button border */
-            padding: 0 !important; /* Remove default button padding */
-            margin: 0 !important; /* Remove default button margin */
-            cursor: pointer; /* Ensure pointer cursor */
+
+        /* Estilo para os botões 'Ver Detalhes' */
+        [data-testid^="stButton"] button {
+            width: 100%; /* Botão ocupa toda a largura da coluna */
+            margin-top: -5px; /* Reduz o espaço entre o card e o botão */
+            font-size: 0.8em; /* Texto menor para o botão */
+            padding: 5px; /* Padding menor */
+            background-color: #00CC96; /* Cor de fundo */
+            color: white; /* Texto branco */
+            border-radius: 5px;
+            border: none;
+            cursor: pointer;
         }
-        /* Remove focus outline for a cleaner look on TV */
-        [data-testid^="stButton"] > button:focus {
-            outline: none !important;
-            box-shadow: none !important;
+        [data-testid^="stButton"] button:hover {
+            background-color: #00A37D; /* Cor mais escura no hover */
         }
 
 
@@ -609,18 +603,22 @@ def main():
                             if responsible_name == best_performer_name:
                                 crown_emoji = "👑 " # Adiciona a coroa
 
-                            # --- Criação do Card Clickável ---
-                            # Usamos st.button e estilizamos ele para parecer um card.
-                            # O HTML injetado no label do botão permite toda a customização.
-                            button_label = f"""
-                            <div class="workload-card">
+                            # --- RENDERIZA O CARD VISUALMENTE (NÃO CLICÁVEL DIRETAMENTE) ---
+                            # Usamos st.markdown para renderizar o HTML estilizado do card.
+                            # Este div agora é apenas para exibição.
+                            card_html_display = f"""
+                            <div class="workload-card-display"> 
                                 <h4>{crown_emoji}{responsible_name}</h4>
                                 <p><strong>{os_ativas}</strong> OS Ativas</p>
                                 <p><span class="{completed_os_class}"><strong>{os_finalizadas}</strong> OS Concluídas (7 dias)</span></p>
                             </div>
                             """
-                            # Ao clicar no botão, a session_state é atualizada e o script é rerunnado
-                            if st.button(button_label, key=f"select_resp_button_{responsible_name}", unsafe_allow_html=True):
+                            st.markdown(card_html_display, unsafe_allow_html=True)
+
+                            # --- CRIA UM BOTÃO SEPARADO PARA A CLICABILIDADE ---
+                            # Este é um st.button padrão, que não aceita HTML no label.
+                            # Ele ficará logo abaixo do card visual.
+                            if st.button(f"Ver Detalhes", key=f"select_resp_button_{responsible_name}"):
                                 st.session_state.selected_responsible = responsible_name
                                 st.experimental_rerun() # Força a atualização para mostrar os detalhes
                     else:
