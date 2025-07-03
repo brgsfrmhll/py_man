@@ -42,8 +42,9 @@ def criar_conexao(username, password, host, port, service):
         return None
 
 # Usando st.cache (compatível com versões mais antigas do Streamlit)
-@st.cache_data(ttl=30) # Substituí st.cache por st.cache_data (melhor prática para dados) e adicionei TTL de 30s
-def obter_ordens_servico(username, password, host, port, service): 
+# Revertido para st.cache para compatibilidade com sua versão do Streamlit
+@st.cache(allow_output_mutation=True, suppress_st_warning=True) 
+def obter_ordens_servico(username, password, host, port, service, refresh_key): # refresh_key reintroduzido
     """Obtém os dados das ordens de serviço do grupo de trabalho 12, criando uma nova conexão."""
     conn = None 
     try:
@@ -479,8 +480,8 @@ def main():
 
             # --- Obtenção e Processamento de Dados ---
             with st.spinner("Carregando e processando dados do banco de dados..."):
-                # Removido 'time.time() // 30' pois st.cache_data já gerencia o TTL
-                df_raw = obter_ordens_servico(USERNAME, PASSWORD, HOST, PORT, SERVICE) 
+                # Passando refresh_key para st.cache, como no código original
+                df_raw = obter_ordens_servico(USERNAME, PASSWORD, HOST, PORT, SERVICE, time.time() // 30) 
                 
             if df_raw.empty:
                 st.error("Não foi possível carregar os dados das Ordens de Serviço. Verifique a conexão com o banco de dados e as configurações.")
