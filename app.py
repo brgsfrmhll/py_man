@@ -29,21 +29,9 @@ except Exception as e:
     st.error(f"Erro na inicialização do Oracle Instant Client: {e}. Verifique a configuração e as variáveis de ambiente.")
 
 # --- Funções de Conexão e Obtenção de Dados ---
-def criar_conexao(username, password, host, port, service):
-    """Cria e retorna uma nova conexão com o banco de dados Oracle."""
-    try:
-        # Tentativa 1: Usando DSN com formato padrão
-        conn = oracledb.connect(user=username, password=password, 
-                               dsn=f"{host}:{port}/{service}")
-        return conn
-    except Exception as e:
-        # Erro de conexão exibido na tela principal do painel
-        st.error(f"Erro ao tentar conectar ao banco de dados: {e}. Verifique as credenciais e a conexão com o servidor.")
-        return None
-
-# Usando st.cache (compatível com versões mais antigas do Streamlit)
+# Revertido para st.cache para compatibilidade com sua versão do Streamlit
 @st.cache(allow_output_mutation=True, suppress_st_warning=True) 
-def obter_ordens_servico(username, password, host, port, service, refresh_key): # refresh_key reintroduzido
+def obter_ordens_servico(username, password, host, port, service, refresh_key): # refresh_key reintroduzido para controlar o TTL
     """Obtém os dados das ordens de serviço do grupo de trabalho 12, criando uma nova conexão."""
     conn = None 
     try:
@@ -255,11 +243,12 @@ def main():
             border-radius: 8px;
             box-shadow: 0 3px 8px rgba(0, 0, 0, 0.3);
             border: 1px solid #2a2e3a;
-            margin-bottom: 5px; /* Espaço entre o card e o botão */
+            /* REMOVIDO margin-bottom AQUI para que o botão fique colado */
             height: 100%; /* Ensure consistent height in columns */
             display: flex;
             flex-direction: column;
             justify-content: center;
+            width: 100%; /* GARANTE LARGURA TOTAL DO CARD */
         }
         .workload-card-display h4 { /* Responsible Name */
             font-size: 1.1em;
@@ -281,7 +270,7 @@ def main():
         /* Estilo para os botões 'Ver Detalhes' */
         [data-testid^="stButton"] button {
             width: 100%; /* Botão ocupa toda a largura da coluna */
-            margin-top: -5px; /* Reduz o espaço entre o card e o botão */
+            margin-top: 5px; /* Adiciona um pequeno espaço acima do botão, colando no card */
             font-size: 0.8em; /* Texto menor para o botão */
             padding: 5px; /* Padding menor */
             background-color: #00CC96; /* Cor de fundo */
@@ -289,6 +278,7 @@ def main():
             border-radius: 5px;
             border: none;
             cursor: pointer;
+            text-align: center; /* Garante texto centralizado no botão */
         }
         [data-testid^="stButton"] button:hover {
             background-color: #00A37D; /* Cor mais escura no hover */
@@ -459,6 +449,9 @@ def main():
     )
 
     # O loop infinito para auto-atualização do dashboard
+    # IMPORTANTE: Removido o time.sleep(30) final para garantir responsividade!
+    # A atualização de dados será controlada pelo TTL do st.cache na função obter_ordens_servico.
+    # O st.experimental_rerun() após o clique do botão garantirá a atualização imediata da UI.
     while True: 
         placeholder_content = st.empty()
         with placeholder_content.container():
@@ -474,13 +467,16 @@ def main():
 
             # --- Obtenção e Processamento de Dados ---
             with st.spinner("Carregando e processando dados do banco de dados..."):
-                # Passando refresh_key para st.cache, como no código original
+                # Passando refresh_key para st.cache para controlar o tempo de vida do cache (30 segundos)
+                # Isso significa que a consulta ao banco de dados só será feita a cada 30 segundos,
+                # mesmo que o script seja reexecutado várias vezes por interações do usuário.
                 df_raw = obter_ordens_servico(USERNAME, PASSWORD, HOST, PORT, SERVICE, time.time() // 30) 
                 
             if df_raw.empty:
                 st.error("Não foi possível carregar os dados das Ordens de Serviço. Verifique a conexão com o banco de dados e as configurações.")
-                time.sleep(30) 
-                st.experimental_rerun() # Força a reinicialização em caso de erro
+                # Mantemos um pequeno sleep aqui APENAS em caso de ERRO de carregamento, para não inundar o log.
+                time.sleep(5) 
+                st.experimental_rerun() # Força a reinicialização em caso de erro grave
                 continue
 
             df_processed = processar_dados(df_raw)
@@ -605,7 +601,6 @@ def main():
 
                             # --- RENDERIZA O CARD VISUALMENTE (NÃO CLICÁVEL DIRETAMENTE) ---
                             # Usamos st.markdown para renderizar o HTML estilizado do card.
-                            # Este div agora é apenas para exibição.
                             card_html_display = f"""
                             <div class="workload-card-display"> 
                                 <h4>{crown_emoji}{responsible_name}</h4>
@@ -616,11 +611,14 @@ def main():
                             st.markdown(card_html_display, unsafe_allow_html=True)
 
                             # --- CRIA UM BOTÃO SEPARADO PARA A CLICABILIDADE ---
-                            # Este é um st.button padrão, que não aceita HTML no label.
+                            # Este é um st.button padrão.
                             # Ele ficará logo abaixo do card visual.
                             if st.button(f"Ver Detalhes", key=f"select_resp_button_{responsible_name}"):
                                 st.session_state.selected_responsible = responsible_name
-                                st.experimental_rerun() # Força a atualização para mostrar os detalhes
+                                # st.experimental_rerun() é chamado aqui para re-executar o script
+                                # e exibir imediatamente os detalhes do responsável selecionado,
+                                # sem esperar pelo refresh automático do cache.
+                                st.experimental_rerun() 
                     else:
                         break # Se tiver mais de 9, paramos de exibir nesta seção
             else:
@@ -661,11 +659,10 @@ def main():
             else:
                 st.info("Clique em um responsável acima para ver seus detalhes de carga e OS concluídas no período!")
 
-
-        # Pausa o script por 30 segundos
-        time.sleep(30) 
-        # Força a reinicialização do script, o que efetivamente "atualiza" a página
-        st.experimental_rerun() 
+        # IMPORTANTE: Removido time.sleep(30) e st.experimental_rerun() aqui.
+        # A atualização periódica dos DADOS é feita pelo st.cache.
+        # A atualização da UI para interação do usuário é feita pelo st.experimental_rerun() no clique do botão.
+        # O Streamlit já gerencia o loop de renderização internamente para manter a UI responsiva.
 
 # Ponto de entrada da aplicação Streamlit
 if __name__ == "__main__":
