@@ -9,7 +9,7 @@ import time
 # Layout "wide" para ocupar a largura total e "collapsed" para esconder a sidebar, ideal para TV
 st.set_page_config(
     page_title="Painel de Acompanhamento de OS - TV",
-    page_icon="��", # Ícone de TV para a página
+    page_icon="📺", # Ícone de TV para a página
     layout="wide",
     initial_sidebar_state="collapsed"
 )
@@ -41,7 +41,9 @@ def criar_conexao(username, password, host, port, service):
         st.error(f"Erro ao tentar conectar ao banco de dados: {e}. Verifique as credenciais e a conexão com o servidor.")
         return None
 
-@st.cache_data(ttl=30) # Atualiza os dados a cada 30 segundos
+# Usando st.cache (compatível com versões mais antigas do Streamlit)
+# O `ttl=30` fará com que os dados sejam revalidados e atualizados a cada 30 segundos.
+@st.cache(allow_output_mutation=True, suppress_st_warning=True, ttl=30)
 def obter_ordens_servico(username, password, host, port, service):
     """Obtém os dados das ordens de serviço do grupo de trabalho 12, criando uma nova conexão."""
     conn = None
@@ -534,7 +536,7 @@ def main():
 
             # --- Obtenção e Processamento de Dados ---
             with st.spinner("Carregando e processando dados do banco de dados..."):
-                # Passando refresh_key para st.cache, o cache_data já gerencia a invalidação pelo ttl
+                # Obter dados. O cache já gerencia a invalidação pelo ttl no decorador.
                 df_raw = obter_ordens_servico(USERNAME, PASSWORD, HOST, PORT, SERVICE)
 
             if df_raw.empty:
@@ -661,7 +663,7 @@ def main():
                             # Adiciona a coroa se for o melhor performer
                             crown_emoji = ""
                             if responsible_name == best_performer_name:
-                                crown_emoji = "�� " # Adiciona a coroa
+                                crown_emoji = "👑 " # Adiciona a coroa
 
                             # --- RENDERIZA O CARD VISUALMENTE (NÃO CLICÁVEL DIRETAMENTE) ---
                             # Usamos st.markdown para renderizar o HTML estilizado do card.
